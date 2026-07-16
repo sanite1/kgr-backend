@@ -1,6 +1,4 @@
 import ApiResponse from "../errors/apiResponse";
-import ApiError from "../errors/apiError";
-import Company from "../models/Company";
 import ContactMessage from "../models/ContactMessage";
 import { ISubmitContactRequest } from "../interfaces/contact.interface";
 import {
@@ -8,23 +6,13 @@ import {
   sendContactAutoReplyMail,
 } from "./nodemailer/mail.service";
 
-// POST /api/contact/:companyId: public, stores the message and fires the
-// notification + auto-reply emails without blocking the response.
-export const submitContactService = async (
-  companyId: string,
-  payload: ISubmitContactRequest,
-) => {
-  const company = await Company.findById(companyId);
-  if (!company) throw new ApiError(404, "Company not found");
-  if (!company.isActive) {
-    throw new ApiError(
-      403,
-      "This company is not accepting messages at the moment",
-    );
-  }
+const NOTIFICATION_EMAIL =
+  process.env.CONTACT_NOTIFICATION_EMAIL || "info@kgrpartnersltd.com";
 
+// POST /api/contact: public, stores the message and fires the
+// notification + auto-reply emails without blocking the response.
+export const submitContactService = async (payload: ISubmitContactRequest) => {
   const doc = await ContactMessage.create({
-    companyId: company._id,
     name: payload.name,
     email: payload.email,
     phone: payload.phone || "",
@@ -41,8 +29,7 @@ export const submitContactService = async (
   }));
 
   // fire-and-forget: a 201 means the message was STORED, not delivered
-  void sendContactNotificationMail(company.email, {
-    companyName: company.name,
+  void sendContactNotificationMail(NOTIFICATION_EMAIL, {
     name: payload.name,
     email: payload.email,
     phone: payload.phone || "",

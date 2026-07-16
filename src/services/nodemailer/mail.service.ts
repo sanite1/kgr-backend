@@ -61,9 +61,8 @@ export const sendWelcomeMail = async (user: IUser) => {
 };
 
 export const sendContactNotificationMail = async (
-  companyEmail: string,
+  notificationEmail: string,
   context: {
-    companyName: string;
     name: string;
     email: string;
     phone: string;
@@ -73,7 +72,7 @@ export const sendContactNotificationMail = async (
   },
 ) => {
   await sendTemplateMail(
-    companyEmail,
+    notificationEmail,
     `New message from ${context.name}${context.subject ? `: ${context.subject}` : ""}`,
     "./contactnotification",
     context,

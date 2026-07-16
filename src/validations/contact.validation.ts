@@ -1,14 +1,11 @@
 import { Joi, validate } from "express-validation";
 
-// Mirrors CONTACT_FORM_INTEGRATION.md exactly: name 2-200, valid email,
+// Mirrors CONTACT_FORM_INTEGRATION.md: name 2-200, valid email,
 // message 1-5000, phone max 50, subject max 300, free-form metadata.
 // Unknown top-level fields are rejected (they must ride inside metadata).
 export const contactValidation = () =>
   validate(
     {
-      params: Joi.object({
-        companyId: Joi.string().hex().length(24).required(),
-      }),
       body: Joi.object({
         name: Joi.string().min(2).max(200).required(),
         email: Joi.string().email().required(),

@@ -10,7 +10,6 @@ export const submitContact = async (
 ) => {
   try {
     const result = await submitContactService(
-      req.params.companyId,
       req.body as ISubmitContactRequest,
     );
     sendResponse(res, result);

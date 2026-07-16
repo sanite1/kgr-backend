@@ -7,7 +7,7 @@ const router = Router();
 
 // public: no auth. 5 submissions per 15 minutes per IP.
 router.post(
-  "/:companyId",
+  "/",
   strictRateLimiter({
     prefix: "contact",
     maxRequests: 5,

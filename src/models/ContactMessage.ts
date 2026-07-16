@@ -1,7 +1,6 @@
-import { Schema, model, Document, Types } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
 export interface IContactMessage extends Document {
-  companyId: Types.ObjectId;
   name: string;
   email: string;
   phone?: string;
@@ -15,12 +14,6 @@ export interface IContactMessage extends Document {
 
 const contactMessageSchema = new Schema<IContactMessage>(
   {
-    companyId: {
-      type: Schema.Types.ObjectId,
-      ref: "Company",
-      required: true,
-      index: true,
-    },
     name: { type: String, required: true, trim: true },
     email: {
       type: String,

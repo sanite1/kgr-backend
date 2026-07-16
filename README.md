@@ -44,7 +44,7 @@ Roles: `staff | admin` (`interfaces/helper.interface.ts`).
 | POST   | `/api/users`                | admin                        | create staff/admin account (sends welcome email)      |
 | GET    | `/api/users/:id`            | admin                        | user detail                                           |
 | PATCH  | `/api/users/:id`            | admin                        | update names/role/activation                          |
-| POST   | `/api/contact/:companyId`   | — (rate-limited 5/15min/IP)  | public contact form: stores message, emails company   |
+| POST   | `/api/contact`              | — (rate-limited 5/15min/IP)  | public contact form: stores message, emails company   |
 
 ## Wire envelopes (mirrored by the frontend's `api.types.ts`)
 

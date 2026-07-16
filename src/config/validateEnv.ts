@@ -20,6 +20,7 @@ const envVariables: EnvVariable[] = [
   { name: "SMTP_USER", required: false, phase: "1" },
   { name: "SMTP_PASSWORD", required: false, phase: "1" },
   { name: "DOMAIN_NAME", required: false, phase: "1" },
+  { name: "CONTACT_NOTIFICATION_EMAIL", required: false, phase: "1" },
 ];
 
 export const validateEnv = (): void => {
