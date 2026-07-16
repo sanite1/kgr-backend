@@ -55,6 +55,8 @@ import logger from "./config/logger";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
 import contactRoutes from "./routes/contact.routes";
+import busRoutes from "./routes/bus.routes";
+import tripPriceRoutes from "./routes/tripPrice.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -122,6 +124,8 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/buses", busRoutes);
+app.use("/api/trip-price", tripPriceRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

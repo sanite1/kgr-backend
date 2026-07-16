@@ -1,0 +1,71 @@
+import { Request, Response, NextFunction } from "express";
+import { sendResponse } from "../helpers/sendResponse";
+import {
+  createBusService,
+  getBusesService,
+  getBusService,
+  updateBusService,
+} from "../services/bus.service";
+import {
+  ICreateBusRequest,
+  IUpdateBusRequest,
+  IBusesQuery,
+} from "../interfaces/bus.interface";
+
+export const createBus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await createBusService(
+      req.body as ICreateBusRequest,
+      String(req.user?._id),
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBuses = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBusesService(req.query as IBusesQuery);
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBusService(req.params.id);
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateBus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await updateBusService(
+      req.params.id,
+      req.body as IUpdateBusRequest,
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
