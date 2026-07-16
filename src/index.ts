@@ -57,6 +57,7 @@ import userRoutes from "./routes/user.routes";
 import contactRoutes from "./routes/contact.routes";
 import busRoutes from "./routes/bus.routes";
 import tripPriceRoutes from "./routes/tripPrice.routes";
+import receiptRoutes from "./routes/receipt.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -126,6 +127,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/buses", busRoutes);
 app.use("/api/trip-price", tripPriceRoutes);
+app.use("/api/receipts", receiptRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {
