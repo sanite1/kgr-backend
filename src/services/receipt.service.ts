@@ -101,9 +101,12 @@ export const getReceiptsService = async (query: IReceiptsQuery) => {
     filter.$or = or;
   }
 
+  const sort: Record<string, 1 | -1> =
+    query.sort === "oldest" ? { date: 1, createdAt: 1 } : { createdAt: -1 };
+
   const [receipts, totalItems] = await Promise.all([
     Receipt.find(filter)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .populate("issuedBy", "firstName lastName"),
@@ -177,6 +180,66 @@ export const voidReceiptService = async (
     `Receipt #${receipt.billId} voided`,
     receipt.toJSON(),
   );
+};
+
+// GET /api/receipts/outstanding-summary: the NYP list's aging banner
+export const getOutstandingSummaryService = async () => {
+  const today = dayString();
+  const byDate = await Receipt.aggregate([
+    { $match: { status: "awaiting_payment" } },
+    {
+      $group: {
+        _id: "$date",
+        count: { $sum: 1 },
+        amount: { $sum: { $toDouble: "$expectedAmount" } },
+      },
+    },
+  ]);
+
+  const todayMs = new Date(`${today}T00:00:00Z`).getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const buckets = {
+    d0_7: { count: 0, amount: 0 },
+    d8_30: { count: 0, amount: 0 },
+    d30plus: { count: 0, amount: 0 },
+  };
+  let count = 0;
+  let amount = 0;
+
+  for (const row of byDate) {
+    const ageDays = Math.max(
+      0,
+      Math.round(
+        (todayMs - new Date(`${row._id}T00:00:00Z`).getTime()) / dayMs,
+      ),
+    );
+    const bucket =
+      ageDays <= 7
+        ? buckets.d0_7
+        : ageDays <= 30
+          ? buckets.d8_30
+          : buckets.d30plus;
+    bucket.count += row.count;
+    bucket.amount += row.amount;
+    count += row.count;
+    amount += row.amount;
+  }
+
+  return new ApiResponse(200, "Outstanding summary retrieved successfully", {
+    count,
+    totalAmount: String(amount),
+    buckets: {
+      d0_7: { count: buckets.d0_7.count, amount: String(buckets.d0_7.amount) },
+      d8_30: {
+        count: buckets.d8_30.count,
+        amount: String(buckets.d8_30.amount),
+      },
+      d30plus: {
+        count: buckets.d30plus.count,
+        amount: String(buckets.d30plus.amount),
+      },
+    },
+  });
 };
 
 // GET /api/receipts/summary: dashboard figures for one day + a 7-day trend

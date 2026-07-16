@@ -15,6 +15,7 @@ import {
   checkInReceipt,
   voidReceipt,
   getReceiptSummary,
+  getOutstandingSummary,
 } from "../controllers/receipt.controller";
 
 const router = Router();
@@ -23,6 +24,7 @@ router.use(isAuthenticated);
 
 // static paths before param paths
 router.get("/summary", receiptSummaryValidation(), getReceiptSummary);
+router.get("/outstanding-summary", getOutstandingSummary);
 router.get("/", listReceiptsValidation(), getReceipts);
 router.post("/", createReceiptValidation(), createReceipt);
 router.get("/:id", receiptIdValidation(), getReceipt);

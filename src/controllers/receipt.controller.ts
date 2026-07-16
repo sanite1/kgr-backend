@@ -7,6 +7,7 @@ import {
   checkInReceiptService,
   voidReceiptService,
   getReceiptSummaryService,
+  getOutstandingSummaryService,
 } from "../services/receipt.service";
 import {
   ICreateReceiptRequest,
@@ -81,6 +82,19 @@ export const voidReceipt = async (
       req.body as IVoidReceiptRequest,
       String(req.user?._id),
     );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getOutstandingSummary = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getOutstandingSummaryService();
     sendResponse(res, result);
   } catch (error) {
     next(error);

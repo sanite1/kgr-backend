@@ -39,6 +39,7 @@ export interface IReceiptsQuery {
   busId?: string;
   date?: string;
   search?: string; // bill id or ticket id
+  sort?: string; // newest (default) | oldest, for arrears views
 }
 
 export interface IVoidReceiptRequest {
