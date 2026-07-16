@@ -98,7 +98,7 @@ export const rateLimiter = (maxRequests = 500, windowMs = 15 * 60 * 1000) => {
           limit: maxRequests,
         });
         return next(
-          new ApiError(429, "Too many requests — please try again later"),
+          new ApiError(429, "Too many requests: please try again later"),
         );
       }
       next();
@@ -148,7 +148,7 @@ export const strictRateLimiter = (options: {
           new ApiError(
             429,
             message ||
-              `Too many ${prefix} requests — please wait before trying again`,
+              `Too many ${prefix} requests: please wait before trying again`,
           ),
         );
       }

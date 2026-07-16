@@ -16,16 +16,16 @@ npm run dev             # nodemon on port 4000
 
 ## Scripts
 
-- `npm run dev` — nodemon + ts-node
-- `npm run build` — `tsc` → `dist/`
-- `npm run start` — `node dist/index.js`
-- `npm run check-types` — `tsc --noEmit`
-- `npm run seed:admin` — create the first admin account
-- `npm run format` / `check-format` — prettier
+- `npm run dev`: nodemon + ts-node
+- `npm run build`: `tsc` → `dist/`
+- `npm run start`: `node dist/index.js`
+- `npm run check-types`: `tsc --noEmit`
+- `npm run seed:admin`: create the first admin account
+- `npm run format` / `check-format`: prettier
 
 ## Auth model
 
-No public registration — this is a staff management system. The first admin
+No public registration: this is a staff management system. The first admin
 is seeded; admins create further accounts via `POST /api/users`. Login issues
 a short-lived access token (15m) and a refresh token (7d); the frontend's
 silent-refresh flow calls `POST /api/auth/refresh` → `{ data: { accessToken } }`.
@@ -35,9 +35,9 @@ Roles: `staff | admin` (`interfaces/helper.interface.ts`).
 
 | Method | Path                        | Auth                         | Purpose                                               |
 | ------ | --------------------------- | ---------------------------- | ----------------------------------------------------- |
-| GET    | `/api/health`               | —                            | liveness check                                        |
-| POST   | `/api/auth/login`           | — (rate-limited 10/15min/IP) | email + password → user + token pair                  |
-| POST   | `/api/auth/refresh`         | —                            | refresh token → new access token                      |
+| GET    | `/api/health`               | :                            | liveness check                                        |
+| POST   | `/api/auth/login`           | : (rate-limited 10/15min/IP) | email + password → user + token pair                  |
+| POST   | `/api/auth/refresh`         | :                            | refresh token → new access token                      |
 | GET    | `/api/auth/me`              | Bearer                       | current user                                          |
 | POST   | `/api/auth/change-password` | Bearer                       | change own password                                   |
 | GET    | `/api/users`                | admin                        | paginated list (`page,pageSize,role,isActive,search`) |

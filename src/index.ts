@@ -1,7 +1,7 @@
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION:", err);
   // Give the logger a moment to flush, then exit with failure code.
-  // Uncaught exceptions leave the process in an undefined state —
+  // Uncaught exceptions leave the process in an undefined state -
   // it is NOT safe to continue.
   setTimeout(() => process.exit(1), 1000);
 });
@@ -30,7 +30,7 @@ process.on("unhandledRejection", (reason, _promise) => {
 
   if (isRecoverable) {
     console.error(
-      `UNHANDLED REJECTION (recoverable — ${code || "no code"}):`,
+      `UNHANDLED REJECTION (recoverable: ${code || "no code"}):`,
       message,
     );
     return;
@@ -58,20 +58,20 @@ import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
 
-// ── Validate environment variables ──
+// Validate environment variables
 validateEnv();
 
 const PORT = process.env.PORT || 4000;
 const app = express();
 
-// ── Webhook raw-body parsers (e.g. payment providers) go HERE,
-//    BEFORE express.json(), when webhooks are added ──
+// Webhook raw-body parsers (e.g. payment providers) go HERE,
+//    BEFORE express.json(), when webhooks are added
 
-// ── Body parsing ──
+// Body parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── CORS ──
+// CORS
 const allowedOrigins = (
   process.env.CORS_ORIGINS ||
   "http://localhost:5173,http://localhost:3000,http://localhost:3001"
@@ -94,20 +94,20 @@ const corsOption = {
 };
 app.use(cors(corsOption));
 
-// ── Request logging ──
+// Request logging
 app.use(requestLogger);
 
-// ── Global IP rate limiting ──
+// Global IP rate limiting
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX) || 1000;
 const RATE_LIMIT_WINDOW_MS =
   Number(process.env.RATE_LIMIT_WINDOW_MS) || 5 * 60 * 1000;
 app.use(rateLimiter(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS));
 
-// ── Connect databases ──
+// Connect databases
 connectDb();
 connectRedis();
 
-// ── Health check ──
+// Health check
 app.get("/api/health", (_req, res) => {
   res.status(200).json({
     status: "ok",
@@ -117,19 +117,19 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// ── Route mounting (prefix lives ONLY here) ──
+// Route mounting (prefix lives ONLY here)
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
-// ── 404 handler (funnels into the error pipeline) ──
+// 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {
   next(new ApiError(404, `Can't find ${req.originalUrl} on the server!`));
 });
 
-// ── Global error handler — MUST be last ──
+// Global error handler: MUST be last
 app.use(globalErrorHandler);
 
-// ── HTTP server + Socket.IO share one server ──
+// HTTP server + Socket.IO share one server
 const httpServer = createServer(app);
 
 const startServer = async () => {

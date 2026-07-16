@@ -13,7 +13,7 @@ export interface IUser extends Document {
   updatedAt?: Date;
 }
 
-// ── request/query DTOs ──
+// request/query DTOs
 
 export interface ILoginRequest {
   email: string;

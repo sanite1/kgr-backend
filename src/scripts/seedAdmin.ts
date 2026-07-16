@@ -22,7 +22,7 @@ const run = async () => {
 
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) {
-    console.log(`Admin already exists: ${email} — nothing to do.`);
+    console.log(`Admin already exists: ${email}: nothing to do.`);
   } else {
     await User.create({
       firstName: process.env.ADMIN_FIRST_NAME || "KGR",

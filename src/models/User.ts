@@ -13,7 +13,7 @@ const userSchema = new Schema<IUser>(
       lowercase: true,
       index: true,
     },
-    // select: false — services that need it must .select("+password")
+    // select: false: services that need it must .select("+password")
     password: { type: String, required: true, select: false },
     role: {
       type: String,

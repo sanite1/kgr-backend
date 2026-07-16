@@ -22,7 +22,7 @@ router.post(
     maxRequests: 10,
     windowMs: 15 * 60 * 1000,
     keyStrategy: "ip",
-    message: "Too many login attempts — please wait before trying again",
+    message: "Too many login attempts: please wait before trying again",
   }),
   loginValidation(),
   login,

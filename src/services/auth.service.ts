@@ -27,7 +27,7 @@ const signRefreshToken = (user: IUser): string =>
     expiresIn: REFRESH_EXPIRES,
   } as jwt.SignOptions);
 
-// POST /api/auth/login — email + password → user + token pair
+// POST /api/auth/login: email + password → user + token pair
 export const loginService = async (payload: ILoginRequest) => {
   const user = await User.findOne({
     email: payload.email.toLowerCase(),
@@ -38,10 +38,7 @@ export const loginService = async (payload: ILoginRequest) => {
   if (!passwordMatches) throw new ApiError(401, "Invalid email or password");
 
   if (!user.isActive) {
-    throw new ApiError(
-      403,
-      "Account is deactivated — contact an administrator",
-    );
+    throw new ApiError(403, "Account is deactivated: contact an administrator");
   }
 
   user.lastLoginAt = new Date();
@@ -54,7 +51,7 @@ export const loginService = async (payload: ILoginRequest) => {
   });
 };
 
-// POST /api/auth/refresh — refresh token → new access token
+// POST /api/auth/refresh: refresh token → new access token
 export const refreshTokenService = async (payload: IRefreshRequest) => {
   const decoded = jwt.verify(payload.token, JWT_REFRESH_SECRET) as {
     id: string;
@@ -65,10 +62,7 @@ export const refreshTokenService = async (payload: IRefreshRequest) => {
   const user = await User.findById(decoded.id);
   if (!user) throw new ApiError(401, "User no longer exists");
   if (!user.isActive) {
-    throw new ApiError(
-      403,
-      "Account is deactivated — contact an administrator",
-    );
+    throw new ApiError(403, "Account is deactivated: contact an administrator");
   }
 
   return new ApiResponse(200, "Token refreshed", {
@@ -76,7 +70,7 @@ export const refreshTokenService = async (payload: IRefreshRequest) => {
   });
 };
 
-// GET /api/auth/me — the authenticated user
+// GET /api/auth/me: the authenticated user
 export const getMeService = async (user: IUser) => {
   return new ApiResponse(200, "User retrieved successfully", user.toJSON());
 };

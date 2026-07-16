@@ -10,7 +10,7 @@ import {
 } from "../interfaces/user.interface";
 import { sendWelcomeMail } from "./nodemailer/mail.service";
 
-// POST /api/users — admin creates a staff/admin account (no public signup)
+// POST /api/users: admin creates a staff/admin account (no public signup)
 export const createUserService = async (payload: ICreateUserRequest) => {
   const existing = await User.findOne({ email: payload.email.toLowerCase() });
   if (existing) {
@@ -25,13 +25,13 @@ export const createUserService = async (payload: ICreateUserRequest) => {
     role: payload.role || "staff",
   });
 
-  // fire-and-forget — a failed email never breaks user creation
+  // fire-and-forget: a failed email never breaks user creation
   void sendWelcomeMail(user);
 
   return new ApiResponse(201, "User created successfully", user.toJSON());
 };
 
-// GET /api/users — paginated, filterable list
+// GET /api/users: paginated, filterable list
 export const getUsersService = async (query: IUsersQuery) => {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
@@ -76,7 +76,7 @@ export const getUserService = async (id: string) => {
   return new ApiResponse(200, "User retrieved successfully", user.toJSON());
 };
 
-// PATCH /api/users/:id — names, role, activation
+// PATCH /api/users/:id: names, role, activation
 export const updateUserService = async (
   id: string,
   payload: IUpdateUserRequest,

@@ -16,7 +16,7 @@ export interface MailAttachment {
 const sendTemplateMail = async (
   to: string,
   subject: string,
-  template: string, // e.g. "./welcome" — relative to viewPath, NO extension
+  template: string, // e.g. "./welcome": relative to viewPath, NO extension
   context: Record<string, any>,
   throwOnError: boolean = false,
   attachments?: MailAttachment[],
@@ -41,7 +41,7 @@ const sendTemplateMail = async (
     const msg = error instanceof Error ? error.message : "Unknown error";
     logger.error(`Failed to send email: "${subject}" to ${to}`, { error: msg });
     if (throwOnError) throw new ApiError(500, `Error sending email: ${msg}`);
-    // else swallow — a failed email never breaks the calling flow
+    // else swallow: a failed email never breaks the calling flow
   }
 };
 

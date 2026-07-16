@@ -28,7 +28,7 @@ if (process.env.AUTH_EMAIL && process.env.AUTH_PASS) {
     else logger.info("SMTP server is ready to send messages");
   });
 } else {
-  logger.warn("SMTP credentials not configured — emails will not be sent");
+  logger.warn("SMTP credentials not configured: emails will not be sent");
 }
 
 export default transporter;

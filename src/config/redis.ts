@@ -29,7 +29,7 @@ export const connectRedis = async () => {
   try {
     if (!process.env.REDIS_URL) {
       logger.warn(
-        "REDIS_URL not configured — Redis caching disabled. API responses will not be cached.",
+        "REDIS_URL not configured: Redis caching disabled. API responses will not be cached.",
       );
       return;
     }
@@ -38,7 +38,7 @@ export const connectRedis = async () => {
     if (error instanceof Error) {
       logger.error("Failed to connect to Redis", { message: error.message });
     }
-    logger.warn("Continuing without Redis — caching disabled");
+    logger.warn("Continuing without Redis: caching disabled");
   }
 };
 

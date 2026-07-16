@@ -14,7 +14,7 @@ const envVariables: EnvVariable[] = [
   { name: "JWT_SECRET", required: true, phase: "1" },
   { name: "JWT_REFRESH_SECRET", required: false, phase: "1" },
   { name: "CORS_ORIGINS", required: false, phase: "1" },
-  // mail — optional until SMTP credentials exist; welcome emails skip silently
+  // mail: optional until SMTP credentials exist; welcome emails skip silently
   { name: "SMTP_HOST", required: false, phase: "1" },
   { name: "SMTP_PORT", required: false, phase: "1" },
   { name: "AUTH_EMAIL", required: false, phase: "1" },
