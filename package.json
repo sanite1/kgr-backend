@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "check-format": "prettier --check .",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
+    "seed:company": "ts-node src/scripts/seedCompany.ts",
     "prepare": "husky install"
   },
   "dependencies": {

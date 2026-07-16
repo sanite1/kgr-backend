@@ -7,7 +7,7 @@ const transporter = createTransport({
   host: process.env.SMTP_HOST || "smtp.zoho.com",
   port: Number(process.env.SMTP_PORT) || 465,
   secure: true,
-  auth: { user: process.env.AUTH_EMAIL, pass: process.env.AUTH_PASS },
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
   tls: { rejectUnauthorized: false },
 });
 
@@ -21,7 +21,7 @@ const handlebarOptions = {
 
 transporter.use("compile", hbs(handlebarOptions));
 
-if (process.env.AUTH_EMAIL && process.env.AUTH_PASS) {
+if (process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
   transporter.verify((error: any, _success: any) => {
     if (error)
       logger.error("SMTP connection error", { message: error.message });

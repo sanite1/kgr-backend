@@ -17,8 +17,8 @@ const envVariables: EnvVariable[] = [
   // mail: optional until SMTP credentials exist; welcome emails skip silently
   { name: "SMTP_HOST", required: false, phase: "1" },
   { name: "SMTP_PORT", required: false, phase: "1" },
-  { name: "AUTH_EMAIL", required: false, phase: "1" },
-  { name: "AUTH_PASS", required: false, phase: "1" },
+  { name: "SMTP_USER", required: false, phase: "1" },
+  { name: "SMTP_PASSWORD", required: false, phase: "1" },
   { name: "DOMAIN_NAME", required: false, phase: "1" },
 ];
 

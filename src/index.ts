@@ -54,6 +54,7 @@ import ApiError from "./errors/apiError";
 import logger from "./config/logger";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
+import contactRoutes from "./routes/contact.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -120,6 +121,7 @@ app.get("/api/health", (_req, res) => {
 // Route mounting (prefix lives ONLY here)
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/contact", contactRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

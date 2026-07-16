@@ -4,7 +4,7 @@ import transporter from "./nodemailer";
 import logger from "../../config/logger";
 
 const DOMAIN_NAME = process.env.DOMAIN_NAME || "https://www.kgrpartnersltd.com";
-const FROM = `"KGR Partners" <${process.env.AUTH_EMAIL}>`;
+const FROM = `"KGR Partners" <${process.env.SMTP_USER}>`;
 
 export interface MailAttachment {
   filename: string;
@@ -21,7 +21,7 @@ const sendTemplateMail = async (
   throwOnError: boolean = false,
   attachments?: MailAttachment[],
 ) => {
-  if (!process.env.AUTH_EMAIL || !process.env.AUTH_PASS) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
     logger.warn(`Email skipped (SMTP not configured): "${subject}" to ${to}`);
     return;
   }
@@ -57,5 +57,37 @@ export const sendWelcomeMail = async (user: IUser) => {
       role: user.role,
       dashboardUrl: DOMAIN_NAME,
     },
+  );
+};
+
+export const sendContactNotificationMail = async (
+  companyEmail: string,
+  context: {
+    companyName: string;
+    name: string;
+    email: string;
+    phone: string;
+    subject: string;
+    message: string;
+    rows: { label: string; value: string }[];
+  },
+) => {
+  await sendTemplateMail(
+    companyEmail,
+    `New message from ${context.name}${context.subject ? `: ${context.subject}` : ""}`,
+    "./contactnotification",
+    context,
+  );
+};
+
+export const sendContactAutoReplyMail = async (
+  senderEmail: string,
+  context: { name: string },
+) => {
+  await sendTemplateMail(
+    senderEmail,
+    "We've received your message: KGR Partners",
+    "./contactautoreply",
+    context,
   );
 };
