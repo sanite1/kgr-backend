@@ -7,8 +7,12 @@ import StockMovement from "../models/StockMovement";
 import Battery from "../models/Battery";
 import BatteryMovement from "../models/BatteryMovement";
 import Bus from "../models/Bus";
+import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
+import { alertIfLowStock } from "../helpers/lowStock";
+import { sendRepairClosedMail } from "./nodemailer/mail.service";
 import {
+  IRepairJob,
   ICreateRepairJob,
   ICompleteRepairJob,
   ICancelRepairJob,
@@ -46,6 +50,24 @@ const checkStock = async (parts: IRepairPartInput[]) => {
 
 const sumParts = (parts: { amount: string }[]) =>
   parts.reduce((acc, p) => acc + Number(p.amount), 0);
+
+// Emails whoever opened the job when someone else closes it.
+// Fire-and-forget: lookup and send never block the response.
+const notifyOpener = (job: IRepairJob, closedBy: string): void => {
+  if (String(job.openedBy) === closedBy) return;
+  void (async () => {
+    const opener = await User.findById(job.openedBy);
+    if (!opener?.email) return;
+    await sendRepairClosedMail(opener.email, {
+      name: opener.firstName,
+      jobId: job.jobId,
+      title: job.title,
+      completed: job.status === "completed",
+      totalCost: job.totalCost,
+      note: job.closeNote || undefined,
+    });
+  })();
+};
 
 // POST /api/repairs
 export const createRepairJobService = async (
@@ -107,6 +129,7 @@ export const createRepairJobService = async (
 
   // deduct stock (pre-checked above) and leave the audit trail
   for (const { item, quantity } of stockLines) {
+    const previousQuantity = item.quantityOnHand;
     item.quantityOnHand -= quantity;
     await item.save();
     await StockMovement.create({
@@ -118,6 +141,7 @@ export const createRepairJobService = async (
       relatedRepair: job._id,
       by: openedBy,
     });
+    alertIfLowStock(item, previousQuantity);
   }
 
   if (battery) {
@@ -193,6 +217,7 @@ export const addRepairPartService = async (
 
   const [{ item, quantity }] = await checkStock([payload]);
 
+  const previousQuantity = item.quantityOnHand;
   item.quantityOnHand -= quantity;
   await item.save();
   await StockMovement.create({
@@ -204,6 +229,7 @@ export const addRepairPartService = async (
     relatedRepair: job._id,
     by,
   });
+  alertIfLowStock(item, previousQuantity);
 
   job.parts.push({
     item: item._id,
@@ -243,6 +269,8 @@ export const completeRepairJobService = async (
   job.closedAt = new Date();
   job.closeNote = payload.note || "";
   await job.save();
+
+  notifyOpener(job, by);
 
   // a repaired battery goes back on the shelf
   if (job.battery) {
@@ -298,6 +326,8 @@ export const cancelRepairJobService = async (
   job.closedAt = new Date();
   job.closeNote = payload.note || "";
   await job.save();
+
+  notifyOpener(job, by);
 
   // the fault was not fixed: the battery stays faulty, not "repaired"
   if (job.battery) {

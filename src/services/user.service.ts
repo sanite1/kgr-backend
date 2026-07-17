@@ -8,7 +8,11 @@ import {
   IUpdateUserRequest,
   IUsersQuery,
 } from "../interfaces/user.interface";
-import { sendWelcomeMail } from "./nodemailer/mail.service";
+import {
+  sendWelcomeMail,
+  sendAccountStatusMail,
+  sendRoleChangeMail,
+} from "./nodemailer/mail.service";
 
 // POST /api/users: admin creates a staff/admin account (no public signup)
 export const createUserService = async (
@@ -98,12 +102,23 @@ export const updateUserService = async (
   const user = await User.findById(id);
   if (!user) throw new ApiError(404, "User not found");
 
+  const previousRole = user.role;
+  const previousActive = user.isActive;
+
   if (payload.firstName !== undefined) user.firstName = payload.firstName;
   if (payload.lastName !== undefined) user.lastName = payload.lastName;
   if (payload.role !== undefined) user.role = payload.role;
   if (payload.isActive !== undefined) user.isActive = payload.isActive;
   user.updatedBy = actingUserId as any;
   await user.save();
+
+  // fire-and-forget notices for changes the person should hear about
+  if (payload.isActive !== undefined && payload.isActive !== previousActive) {
+    void sendAccountStatusMail(user);
+  }
+  if (payload.role !== undefined && payload.role !== previousRole) {
+    void sendRoleChangeMail(user, previousRole);
+  }
 
   return new ApiResponse(200, "User updated successfully", user.toJSON());
 };

@@ -3,6 +3,7 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import InventoryItem from "../models/InventoryItem";
 import StockMovement from "../models/StockMovement";
+import { alertIfLowStock } from "../helpers/lowStock";
 import {
   ICreateItemRequest,
   IUpdateItemRequest,
@@ -141,6 +142,7 @@ export const adjustStockService = async (
   const item = await InventoryItem.findById(id);
   if (!item) throw new ApiError(404, "Item not found");
 
+  const previousQuantity = item.quantityOnHand;
   let movementQuantity = payload.quantity;
   if (payload.type === "in") {
     item.quantityOnHand += payload.quantity;
@@ -166,6 +168,8 @@ export const adjustStockService = async (
     note: payload.note || "",
     by,
   });
+
+  alertIfLowStock(item, previousQuantity);
 
   return new ApiResponse(200, "Stock updated successfully", item.toJSON());
 };

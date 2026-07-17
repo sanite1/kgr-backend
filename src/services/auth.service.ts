@@ -9,6 +9,7 @@ import {
   IRefreshRequest,
   IChangePasswordRequest,
 } from "../interfaces/user.interface";
+import { sendPasswordChangedMail } from "./nodemailer/mail.service";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
@@ -92,6 +93,9 @@ export const changePasswordService = async (
 
   user.password = await bcrypt.hash(payload.newPassword, 10);
   await user.save();
+
+  // security heads-up; fire-and-forget
+  void sendPasswordChangedMail(user);
 
   return new ApiResponse(200, "Password changed successfully");
 };

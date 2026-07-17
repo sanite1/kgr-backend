@@ -5,9 +5,13 @@ import PartRequest from "../models/PartRequest";
 import InventoryItem from "../models/InventoryItem";
 import StockMovement from "../models/StockMovement";
 import Bus from "../models/Bus";
+import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { dayString } from "../helpers/day";
+import { alertIfLowStock } from "../helpers/lowStock";
+import { sendRequestDecisionMail } from "./nodemailer/mail.service";
 import {
+  IPartRequest,
   ICreatePartRequest,
   IDecideRequest,
   IPartRequestsQuery,
@@ -136,6 +140,7 @@ export const approvePartRequestService = async (
     );
   }
 
+  const previousQuantity = item.quantityOnHand;
   item.quantityOnHand -= request.quantity;
   await item.save();
 
@@ -149,11 +154,15 @@ export const approvePartRequestService = async (
     by: decidedBy,
   });
 
+  alertIfLowStock(item, previousQuantity);
+
   request.status = "approved";
   request.decidedBy = decidedBy as any;
   request.decidedAt = new Date();
   request.decisionNote = payload.note || "";
   await request.save();
+
+  notifyRequester(request, decidedBy, true);
 
   return new ApiResponse(
     200,
@@ -183,11 +192,36 @@ export const declinePartRequestService = async (
   request.decisionNote = payload.note || "";
   await request.save();
 
+  notifyRequester(request, decidedBy, false);
+
   return new ApiResponse(
     200,
     `Request #${request.requestId} declined`,
     request.toJSON(),
   );
+};
+
+// Emails the requester about the decision, unless they decided it
+// themselves. Fire-and-forget: lookup and send never block the response.
+const notifyRequester = (
+  request: IPartRequest,
+  decidedBy: string,
+  approved: boolean,
+): void => {
+  if (String(request.requestedBy) === decidedBy) return;
+  void (async () => {
+    const requester = await User.findById(request.requestedBy);
+    if (!requester?.email) return;
+    await sendRequestDecisionMail(requester.email, {
+      name: requester.firstName,
+      requestId: request.requestId,
+      itemName: request.itemName,
+      quantity: request.quantity,
+      busNumber: request.busNumber,
+      approved,
+      note: request.decisionNote || undefined,
+    });
+  })();
 };
 
 // GET /api/requests/bus-expense: approved spend grouped per bus
