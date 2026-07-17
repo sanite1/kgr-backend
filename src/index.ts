@@ -61,6 +61,8 @@ import receiptRoutes from "./routes/receipt.routes";
 import paymentRoutes from "./routes/payment.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import partRequestRoutes from "./routes/partRequest.routes";
+import batteryRoutes from "./routes/battery.routes";
+import repairRoutes from "./routes/repair.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -134,6 +136,8 @@ app.use("/api/receipts", receiptRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/requests", partRequestRoutes);
+app.use("/api/batteries", batteryRoutes);
+app.use("/api/repairs", repairRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

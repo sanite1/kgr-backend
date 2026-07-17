@@ -14,6 +14,7 @@ const stockMovementSchema = new Schema<IStockMovement>(
     balanceAfter: { type: Number, required: true },
     note: { type: String, default: "" },
     relatedRequest: { type: Schema.Types.ObjectId, ref: "PartRequest" },
+    relatedRepair: { type: Schema.Types.ObjectId, ref: "RepairJob" },
     by: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   {

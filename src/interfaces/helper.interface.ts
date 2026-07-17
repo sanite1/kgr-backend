@@ -8,3 +8,10 @@ export type ItemCategory = "part" | "battery" | "consumable";
 export type StockMovementType = "in" | "out" | "adjust";
 
 export type RequestStatus = "pending" | "approved" | "declined";
+
+export type BatteryStatus =
+  "in_store" | "charging" | "on_bus" | "faulty" | "in_repair";
+
+export type BatteryMoveAction = "issue" | "collect" | "status";
+
+export type RepairStatus = "open" | "completed" | "cancelled";

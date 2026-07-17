@@ -21,6 +21,7 @@ export interface IStockMovement extends Document {
   balanceAfter: number;
   note: string;
   relatedRequest?: Types.ObjectId;
+  relatedRepair?: Types.ObjectId;
   by: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
