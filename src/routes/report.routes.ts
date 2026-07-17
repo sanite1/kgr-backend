@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS } from "../config/roles";
 import {
   monthlyReportValidation,
   expenseReportValidation,
@@ -12,8 +13,8 @@ import {
 
 const router = Router();
 
-// whole-business money views: admin-only
-router.use(isAuthenticated, authorizeRoles("admin"));
+// whole-business money views: managers and admin
+router.use(isAuthenticated, authorizeRoles(...MANAGERS));
 
 router.get("/monthly", monthlyReportValidation(), getMonthlyReport);
 router.get("/expenses", expenseReportValidation(), getExpenseReport);

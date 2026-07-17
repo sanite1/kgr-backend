@@ -53,6 +53,7 @@ export const updateItem = async (
     const result = await updateItemService(
       req.params.id,
       req.body as IUpdateItemRequest,
+      String(req.user?._id),
     );
     sendResponse(res, result);
   } catch (error) {

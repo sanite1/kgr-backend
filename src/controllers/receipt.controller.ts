@@ -64,7 +64,10 @@ export const checkInReceipt = async (
   next: NextFunction,
 ) => {
   try {
-    const result = await checkInReceiptService(req.params.id);
+    const result = await checkInReceiptService(
+      req.params.id,
+      String(req.user?._id),
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);

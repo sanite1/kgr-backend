@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS } from "../config/roles";
 import {
   createPartRequestValidation,
   decideRequestValidation,
@@ -20,19 +21,24 @@ const router = Router();
 router.use(isAuthenticated);
 
 // static paths before param paths
-router.get("/bus-expense", busExpenseValidation(), getBusExpense);
+router.get(
+  "/bus-expense",
+  authorizeRoles(...MANAGERS),
+  busExpenseValidation(),
+  getBusExpense,
+);
 router.get("/", listPartRequestsValidation(), getPartRequests);
 router.post("/", createPartRequestValidation(), createPartRequest);
-// approval moves stock and money attribution: admin-only
+// approval moves stock and money attribution: managers only
 router.post(
   "/:id/approve",
-  authorizeRoles("admin"),
+  authorizeRoles(...MANAGERS),
   decideRequestValidation(),
   approvePartRequest,
 );
 router.post(
   "/:id/decline",
-  authorizeRoles("admin"),
+  authorizeRoles(...MANAGERS),
   decideRequestValidation(),
   declinePartRequest,
 );

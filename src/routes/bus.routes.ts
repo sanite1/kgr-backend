@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS, FRONT_DESK } from "../config/roles";
 import {
   createBusValidation,
   updateBusValidation,
@@ -18,11 +19,21 @@ const router = Router();
 
 router.use(isAuthenticated);
 
-// any signed-in staff can view and quick-add buses (needed at receipt time);
-// edits and deactivation are admin-only
+// everyone can view; the front desk can quick-add a bus at receipt
+// time; edits and deactivation need a manager
 router.get("/", listBusesValidation(), getBuses);
-router.post("/", createBusValidation(), createBus);
+router.post(
+  "/",
+  authorizeRoles(...FRONT_DESK),
+  createBusValidation(),
+  createBus,
+);
 router.get("/:id", getBusValidation(), getBus);
-router.patch("/:id", authorizeRoles("admin"), updateBusValidation(), updateBus);
+router.patch(
+  "/:id",
+  authorizeRoles(...MANAGERS),
+  updateBusValidation(),
+  updateBus,
+);
 
 export default router;

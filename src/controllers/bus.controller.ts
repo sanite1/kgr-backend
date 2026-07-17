@@ -63,6 +63,7 @@ export const updateBus = async (
     const result = await updateBusService(
       req.params.id,
       req.body as IUpdateBusRequest,
+      String(req.user?._id),
     );
     sendResponse(res, result);
   } catch (error) {

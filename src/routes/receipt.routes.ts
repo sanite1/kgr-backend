@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS, FRONT_DESK } from "../config/roles";
 import {
   createReceiptValidation,
   listReceiptsValidation,
@@ -26,13 +27,24 @@ router.use(isAuthenticated);
 router.get("/summary", receiptSummaryValidation(), getReceiptSummary);
 router.get("/outstanding-summary", getOutstandingSummary);
 router.get("/", listReceiptsValidation(), getReceipts);
-router.post("/", createReceiptValidation(), createReceipt);
+// issuing and checking in are front desk work
+router.post(
+  "/",
+  authorizeRoles(...FRONT_DESK),
+  createReceiptValidation(),
+  createReceipt,
+);
 router.get("/:id", receiptIdValidation(), getReceipt);
-router.post("/:id/check-in", receiptIdValidation(), checkInReceipt);
-// voiding a receipt is admin-only and always carries a reason
+router.post(
+  "/:id/check-in",
+  authorizeRoles(...FRONT_DESK),
+  receiptIdValidation(),
+  checkInReceipt,
+);
+// voiding a receipt needs a manager and always carries a reason
 router.post(
   "/:id/void",
-  authorizeRoles("admin"),
+  authorizeRoles(...MANAGERS),
   voidReceiptValidation(),
   voidReceipt,
 );

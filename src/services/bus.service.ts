@@ -83,6 +83,7 @@ export const getBusService = async (id: string) => {
 export const updateBusService = async (
   id: string,
   payload: IUpdateBusRequest,
+  updatedBy: string,
 ) => {
   const bus = await Bus.findById(id);
   if (!bus) throw new ApiError(404, "Bus not found");
@@ -97,6 +98,7 @@ export const updateBusService = async (
   if (payload.driverPhone !== undefined) bus.driverPhone = payload.driverPhone;
   if (payload.isActive !== undefined) bus.isActive = payload.isActive;
   if (payload.notes !== undefined) bus.notes = payload.notes;
+  bus.updatedBy = updatedBy as any;
   await bus.save();
 
   return new ApiResponse(200, "Bus updated successfully", bus.toJSON());

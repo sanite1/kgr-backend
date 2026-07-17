@@ -91,9 +91,23 @@ export const getItemsService = async (query: IItemsQuery) => {
 export const updateItemService = async (
   id: string,
   payload: IUpdateItemRequest,
+  by: string,
 ) => {
   const item = await InventoryItem.findById(id);
   if (!item) throw new ApiError(404, "Item not found");
+
+  // sensitive edits leave a zero-quantity movement so the item's
+  // history shows who changed what, not just stock counts
+  const changes: string[] = [];
+  if (payload.name !== undefined && payload.name.trim() !== item.name) {
+    changes.push(`Renamed "${item.name}" to "${payload.name.trim()}"`);
+  }
+  if (payload.unitCost !== undefined && payload.unitCost !== item.unitCost) {
+    changes.push(`Unit cost ${item.unitCost} to ${payload.unitCost}`);
+  }
+  if (payload.isActive !== undefined && payload.isActive !== item.isActive) {
+    changes.push(payload.isActive ? "Item reactivated" : "Item deactivated");
+  }
 
   if (payload.name !== undefined) item.name = payload.name.trim();
   if (payload.category !== undefined) item.category = payload.category;
@@ -102,6 +116,17 @@ export const updateItemService = async (
   if (payload.minLevel !== undefined) item.minLevel = payload.minLevel;
   if (payload.isActive !== undefined) item.isActive = payload.isActive;
   await item.save();
+
+  if (changes.length > 0) {
+    await StockMovement.create({
+      item: item._id,
+      type: "adjust",
+      quantity: 0,
+      balanceAfter: item.quantityOnHand,
+      note: changes.join("; "),
+      by,
+    });
+  }
 
   return new ApiResponse(200, "Item updated successfully", item.toJSON());
 };

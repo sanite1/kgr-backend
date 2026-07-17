@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { STORE } from "../config/roles";
 import {
   createBatteryValidation,
   updateBatteryValidation,
@@ -28,23 +29,38 @@ router.use(isAuthenticated);
 // static paths before param paths
 router.get("/summary", getBatterySummary);
 router.get("/", listBatteriesValidation(), getBatteries);
-// registering/editing the fleet of packs is admin work
+// registering/editing the fleet of packs is store work
 router.post(
   "/",
-  authorizeRoles("admin"),
+  authorizeRoles(...STORE),
   createBatteryValidation(),
   createBattery,
 );
 router.patch(
   "/:id",
-  authorizeRoles("admin"),
+  authorizeRoles(...STORE),
   updateBatteryValidation(),
   updateBattery,
 );
-// daily swap operations: any staff
-router.post("/:id/issue", issueBatteryValidation(), issueBattery);
-router.post("/:id/collect", collectBatteryValidation(), collectBattery);
-router.post("/:id/status", setBatteryStatusValidation(), setBatteryStatus);
+// daily swap operations: store work
+router.post(
+  "/:id/issue",
+  authorizeRoles(...STORE),
+  issueBatteryValidation(),
+  issueBattery,
+);
+router.post(
+  "/:id/collect",
+  authorizeRoles(...STORE),
+  collectBatteryValidation(),
+  collectBattery,
+);
+router.post(
+  "/:id/status",
+  authorizeRoles(...STORE),
+  setBatteryStatusValidation(),
+  setBatteryStatus,
+);
 router.get("/:id/movements", batteryMovementsValidation(), getBatteryMovements);
 
 export default router;

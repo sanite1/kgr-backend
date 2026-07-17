@@ -17,12 +17,14 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true, select: false },
     role: {
       type: String,
-      enum: ["staff", "admin"],
+      enum: ["staff", "cashier", "storekeeper", "manager", "admin"],
       default: "staff",
       index: true,
     },
     isActive: { type: Boolean, default: true, index: true },
     lastLoginAt: { type: Date },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   {
     timestamps: true,

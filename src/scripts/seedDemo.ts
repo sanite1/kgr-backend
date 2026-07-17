@@ -1,6 +1,7 @@
 // One-off: fills an empty database with demo buses, stock items and
 // batteries so the console can be explored before real data exists.
-// Refuses to run in production or if any of those collections has data.
+// Refuses to run in production; collections that already have data
+// are left untouched and skipped.
 // Usage: `npm run seed:demo` (needs the seeded admin to exist).
 import dotenv from "dotenv";
 dotenv.config();
@@ -118,47 +119,52 @@ const run = async () => {
     InventoryItem.countDocuments(),
     Battery.countDocuments(),
   ]);
-  if (busCount || itemCount || batteryCount) {
-    console.error(
-      `Refusing to seed: found ${busCount} buses, ${itemCount} items, ${batteryCount} batteries already.`,
-    );
-    await mongoose.disconnect();
-    process.exit(1);
+
+  if (busCount) {
+    console.log(`Buses: ${busCount} already exist, skipping.`);
+  } else {
+    for (const bus of BUSES) {
+      await Bus.create({ ...bus, createdBy: admin._id });
+    }
+    console.log(`Created ${BUSES.length} buses`);
   }
 
-  for (const bus of BUSES) {
-    await Bus.create({ ...bus, createdBy: admin._id });
+  if (itemCount) {
+    console.log(`Stock items: ${itemCount} already exist, skipping.`);
+  } else {
+    for (const item of ITEMS) {
+      const doc = await InventoryItem.create({ ...item, createdBy: admin._id });
+      if (item.quantityOnHand > 0) {
+        await StockMovement.create({
+          item: doc._id,
+          type: "in",
+          quantity: item.quantityOnHand,
+          balanceAfter: item.quantityOnHand,
+          note: "Opening stock (demo seed)",
+          by: admin._id,
+        });
+      }
+    }
+    console.log(`Created ${ITEMS.length} stock items`);
   }
-  console.log(`Created ${BUSES.length} buses`);
 
-  for (const item of ITEMS) {
-    const doc = await InventoryItem.create({ ...item, createdBy: admin._id });
-    if (item.quantityOnHand > 0) {
-      await StockMovement.create({
-        item: doc._id,
-        type: "in",
-        quantity: item.quantityOnHand,
-        balanceAfter: item.quantityOnHand,
-        note: "Opening stock (demo seed)",
+  if (batteryCount) {
+    console.log(`Batteries: ${batteryCount} already exist, skipping.`);
+  } else {
+    for (const battery of BATTERIES) {
+      const doc = await Battery.create({ ...battery, createdBy: admin._id });
+      await BatteryMovement.create({
+        battery: doc._id,
+        batteryCode: doc.code,
+        action: "status",
+        fromStatus: battery.status,
+        toStatus: battery.status,
+        note: "Battery registered (demo seed)",
         by: admin._id,
       });
     }
+    console.log(`Created ${BATTERIES.length} batteries`);
   }
-  console.log(`Created ${ITEMS.length} stock items`);
-
-  for (const battery of BATTERIES) {
-    const doc = await Battery.create({ ...battery, createdBy: admin._id });
-    await BatteryMovement.create({
-      battery: doc._id,
-      batteryCode: doc.code,
-      action: "status",
-      fromStatus: battery.status,
-      toStatus: battery.status,
-      note: "Battery registered (demo seed)",
-      by: admin._id,
-    });
-  }
-  console.log(`Created ${BATTERIES.length} batteries`);
 
   console.log(
     "Demo data ready. Receipts, requests and repairs are yours to make.",

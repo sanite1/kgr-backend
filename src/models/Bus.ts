@@ -16,6 +16,7 @@ const busSchema = new Schema<IBus>(
     isActive: { type: Boolean, default: true, index: true },
     notes: { type: String, default: "" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   {
     timestamps: true,

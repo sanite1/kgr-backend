@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS, STORE } from "../config/roles";
 import {
   createRepairJobValidation,
   addRepairPartValidation,
@@ -21,18 +22,28 @@ const router = Router();
 router.use(isAuthenticated);
 
 router.get("/", listRepairJobsValidation(), getRepairJobs);
-router.post("/", createRepairJobValidation(), createRepairJob);
-router.post("/:id/parts", addRepairPartValidation(), addRepairPart);
-// closing a job prices the labor / restocks parts: admin-only
+router.post(
+  "/",
+  authorizeRoles(...STORE),
+  createRepairJobValidation(),
+  createRepairJob,
+);
+router.post(
+  "/:id/parts",
+  authorizeRoles(...STORE),
+  addRepairPartValidation(),
+  addRepairPart,
+);
+// closing a job prices the labor / restocks parts: managers only
 router.post(
   "/:id/complete",
-  authorizeRoles("admin"),
+  authorizeRoles(...MANAGERS),
   completeRepairJobValidation(),
   completeRepairJob,
 );
 router.post(
   "/:id/cancel",
-  authorizeRoles("admin"),
+  authorizeRoles(...MANAGERS),
   cancelRepairJobValidation(),
   cancelRepairJob,
 );

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { STORE } from "../config/roles";
 import {
   createItemValidation,
   updateItemValidation,
@@ -20,18 +21,18 @@ const router = Router();
 
 router.use(isAuthenticated);
 
-// everyone signed in can see stock; changing it is admin-only
+// everyone signed in can see stock; changing it is store work
 router.get("/", listItemsValidation(), getItems);
-router.post("/", authorizeRoles("admin"), createItemValidation(), createItem);
+router.post("/", authorizeRoles(...STORE), createItemValidation(), createItem);
 router.patch(
   "/:id",
-  authorizeRoles("admin"),
+  authorizeRoles(...STORE),
   updateItemValidation(),
   updateItem,
 );
 router.post(
   "/:id/adjust",
-  authorizeRoles("admin"),
+  authorizeRoles(...STORE),
   adjustStockValidation(),
   adjustStock,
 );

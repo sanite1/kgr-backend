@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
+import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { MANAGERS, FRONT_DESK } from "../config/roles";
 import {
   payReceiptValidation,
   listPaymentsValidation,
@@ -18,9 +20,25 @@ const router = Router();
 router.use(isAuthenticated);
 
 // static paths before param paths
-router.get("/daily-account", dailyAccountValidation(), getDailyAccount);
-router.get("/export", exportPaymentsValidation(), exportPayments);
+// the reconciliation view compares every cashier: managers only
+router.get(
+  "/daily-account",
+  authorizeRoles(...MANAGERS),
+  dailyAccountValidation(),
+  getDailyAccount,
+);
+router.get(
+  "/export",
+  authorizeRoles(...FRONT_DESK),
+  exportPaymentsValidation(),
+  exportPayments,
+);
 router.get("/", listPaymentsValidation(), getPayments);
-router.post("/", payReceiptValidation(), payReceipt);
+router.post(
+  "/",
+  authorizeRoles(...FRONT_DESK),
+  payReceiptValidation(),
+  payReceipt,
+);
 
 export default router;

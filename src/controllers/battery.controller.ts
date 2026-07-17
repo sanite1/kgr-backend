@@ -71,6 +71,7 @@ export const updateBattery = async (
     const result = await updateBatteryService(
       req.params.id,
       req.body as IUpdateBattery,
+      String(req.user?._id),
     );
     sendResponse(res, result);
   } catch (error) {

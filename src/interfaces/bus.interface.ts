@@ -7,6 +7,7 @@ export interface IBus extends Document {
   isActive: boolean;
   notes?: string;
   createdBy: Types.ObjectId;
+  updatedBy?: Types.ObjectId; // last editor
   createdAt?: Date;
   updatedAt?: Date;
 }

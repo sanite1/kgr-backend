@@ -1,4 +1,4 @@
-import { Document } from "mongoose";
+import { Document, Types } from "mongoose";
 import { UserRole } from "./helper.interface";
 
 export interface IUser extends Document {
@@ -9,6 +9,8 @@ export interface IUser extends Document {
   role: UserRole;
   isActive: boolean;
   lastLoginAt?: Date;
+  createdBy?: Types.ObjectId; // absent on the seeded admin
+  updatedBy?: Types.ObjectId; // last admin to edit the account
   createdAt?: Date;
   updatedAt?: Date;
 }

@@ -25,6 +25,7 @@ const receiptSchema = new Schema<IReceipt>(
     issuedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     checkedIn: { type: Boolean, default: false },
     checkedInAt: { type: Date },
+    checkedInBy: { type: Schema.Types.ObjectId, ref: "User" },
     paidAt: { type: Date },
     paidBy: { type: Schema.Types.ObjectId, ref: "User" },
     voidedAt: { type: Date },

@@ -75,6 +75,7 @@ export const createReceiptService = async (
     issuedBy,
     checkedIn: !!payload.checkIn,
     checkedInAt: payload.checkIn ? new Date() : undefined,
+    checkedInBy: payload.checkIn ? issuedBy : undefined,
   });
 
   return new ApiResponse(201, "Receipt issued successfully", receipt.toJSON());
@@ -125,7 +126,7 @@ export const getReceiptsService = async (query: IReceiptsQuery) => {
 // GET /api/receipts/:id
 export const getReceiptService = async (id: string) => {
   const receipt = await Receipt.findById(id).populate(
-    "issuedBy paidBy voidedBy",
+    "issuedBy paidBy voidedBy checkedInBy",
     "firstName lastName",
   );
   if (!receipt) throw new ApiError(404, "Receipt not found");
@@ -137,7 +138,7 @@ export const getReceiptService = async (id: string) => {
 };
 
 // POST /api/receipts/:id/check-in
-export const checkInReceiptService = async (id: string) => {
+export const checkInReceiptService = async (id: string, by: string) => {
   const receipt = await Receipt.findById(id);
   if (!receipt) throw new ApiError(404, "Receipt not found");
   if (receipt.status === "void") {
@@ -148,6 +149,7 @@ export const checkInReceiptService = async (id: string) => {
   }
   receipt.checkedIn = true;
   receipt.checkedInAt = new Date();
+  receipt.checkedInBy = by as any;
   await receipt.save();
   return new ApiResponse(
     200,

@@ -11,7 +11,10 @@ import {
 import { sendWelcomeMail } from "./nodemailer/mail.service";
 
 // POST /api/users: admin creates a staff/admin account (no public signup)
-export const createUserService = async (payload: ICreateUserRequest) => {
+export const createUserService = async (
+  payload: ICreateUserRequest,
+  createdBy: string,
+) => {
   const existing = await User.findOne({ email: payload.email.toLowerCase() });
   if (existing) {
     throw new ApiError(409, "A user with this email already exists");
@@ -23,6 +26,7 @@ export const createUserService = async (payload: ICreateUserRequest) => {
     email: payload.email,
     password: await bcrypt.hash(payload.password, 10),
     role: payload.role || "staff",
+    createdBy,
   });
 
   // fire-and-forget: a failed email never breaks user creation
@@ -97,6 +101,7 @@ export const updateUserService = async (
   if (payload.lastName !== undefined) user.lastName = payload.lastName;
   if (payload.role !== undefined) user.role = payload.role;
   if (payload.isActive !== undefined) user.isActive = payload.isActive;
+  user.updatedBy = actingUserId as any;
   await user.save();
 
   return new ApiResponse(200, "User updated successfully", user.toJSON());

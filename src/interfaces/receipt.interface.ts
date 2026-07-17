@@ -14,6 +14,7 @@ export interface IReceipt extends Document {
   issuedBy: Types.ObjectId;
   checkedIn: boolean;
   checkedInAt?: Date;
+  checkedInBy?: Types.ObjectId;
   paidAt?: Date;
   paidBy?: Types.ObjectId;
   voidedAt?: Date;

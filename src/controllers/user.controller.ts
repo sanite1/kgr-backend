@@ -18,7 +18,10 @@ export const createUser = async (
   next: NextFunction,
 ) => {
   try {
-    const result = await createUserService(req.body as ICreateUserRequest);
+    const result = await createUserService(
+      req.body as ICreateUserRequest,
+      String(req.user?._id),
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);

@@ -124,14 +124,21 @@ export const getBatterySummaryService = async () => {
 export const updateBatteryService = async (
   id: string,
   payload: IUpdateBattery,
+  by: string,
 ) => {
   const battery = await Battery.findById(id);
   if (!battery) throw new ApiError(404, "Battery not found");
+
+  // notable edits land in the movement history with the editor's name
+  const changes: string[] = [];
 
   if (payload.code !== undefined) {
     const code = payload.code.trim().toUpperCase();
     const clash = await Battery.findOne({ code, _id: { $ne: battery._id } });
     if (clash) throw new ApiError(409, `Battery "${code}" already exists`);
+    if (code !== battery.code) {
+      changes.push(`Relabelled ${battery.code} as ${code}`);
+    }
     battery.code = code;
   }
   if (payload.notes !== undefined) battery.notes = payload.notes;
@@ -142,10 +149,27 @@ export const updateBatteryService = async (
         `${battery.code} is on ${battery.busNumber}; collect it before retiring`,
       );
     }
+    if (payload.isActive !== battery.isActive) {
+      changes.push(
+        payload.isActive ? "Battery reactivated" : "Battery retired",
+      );
+    }
     battery.isActive = payload.isActive;
   }
 
   await battery.save();
+
+  if (changes.length > 0) {
+    await BatteryMovement.create({
+      battery: battery._id,
+      batteryCode: battery.code,
+      action: "status",
+      fromStatus: battery.status,
+      toStatus: battery.status,
+      note: changes.join("; "),
+      by,
+    });
+  }
   return new ApiResponse(
     200,
     `Battery ${battery.code} updated`,
