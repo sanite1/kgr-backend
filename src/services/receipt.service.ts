@@ -244,12 +244,14 @@ export const getOutstandingSummaryService = async () => {
   });
 };
 
-// GET /api/receipts/summary: dashboard figures for one day + a 7-day trend
+// GET /api/receipts/summary: dashboard figures for one day, the
+// running month, and a 7-day trend
 export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
   const date = query.date || dayString();
   const days = lastNDays(7);
+  const monthPrefix = new RegExp(`^${date.slice(0, 7)}-`);
 
-  const [dayAgg, seriesAgg] = await Promise.all([
+  const [dayAgg, seriesAgg, monthAgg] = await Promise.all([
     Receipt.aggregate([
       { $match: { date } },
       {
@@ -326,6 +328,24 @@ export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
         },
       },
     ]),
+    Receipt.aggregate([
+      { $match: { date: monthPrefix } },
+      {
+        $group: {
+          _id: null,
+          issued: { $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] } },
+          collected: {
+            $sum: {
+              $cond: [
+                { $eq: ["$status", "paid"] },
+                { $toDouble: "$expectedAmount" },
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
   ]);
 
   const agg = dayAgg[0] || {
@@ -347,6 +367,8 @@ export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
     };
   });
 
+  const month = monthAgg[0] || { issued: 0, collected: 0 };
+
   return new ApiResponse(200, "Summary retrieved successfully", {
     date,
     issuedCount: agg.issuedCount,
@@ -356,6 +378,8 @@ export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
     trips: agg.trips,
     checkedIn: agg.checkedIn,
     awaitingCount: agg.awaitingCount,
+    monthCollected: String(month.collected),
+    monthIssuedCount: month.issued,
     series,
   });
 };
