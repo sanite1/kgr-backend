@@ -13,6 +13,7 @@
     "check-format": "prettier --check .",
     "seed:admin": "ts-node src/scripts/seedAdmin.ts",
     "seed:demo": "ts-node src/scripts/seedDemo.ts",
+    "seed:conversions": "ts-node src/scripts/seedConversions.ts",
     "prepare": "husky install"
   },
   "dependencies": {

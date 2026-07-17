@@ -3,7 +3,9 @@ import { IUser } from "../../interfaces/user.interface";
 import transporter from "./nodemailer";
 import logger from "../../config/logger";
 
-const DOMAIN_NAME = process.env.DOMAIN_NAME || "https://www.kgrpartnersltd.com";
+// admin/console-side emails link here, NOT to the public website
+const CONSOLE_URL =
+  process.env.CONSOLE_URL || "https://admin.kgrpartnersltd.com";
 const FROM = `"KGR Partners" <${process.env.SMTP_USER}>`;
 
 export interface MailAttachment {
@@ -55,7 +57,7 @@ export const sendWelcomeMail = async (user: IUser) => {
       name: user.firstName,
       email: user.email,
       role: user.role,
-      dashboardUrl: DOMAIN_NAME,
+      dashboardUrl: CONSOLE_URL,
     },
   );
 };
