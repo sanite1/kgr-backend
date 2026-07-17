@@ -9,6 +9,7 @@ import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { dayString } from "../helpers/day";
 import { alertIfLowStock } from "../helpers/lowStock";
+import { inBackground } from "../helpers/background";
 import { sendRequestDecisionMail } from "./nodemailer/mail.service";
 import {
   IPartRequest,
@@ -209,19 +210,21 @@ const notifyRequester = (
   approved: boolean,
 ): void => {
   if (String(request.requestedBy) === decidedBy) return;
-  void (async () => {
-    const requester = await User.findById(request.requestedBy);
-    if (!requester?.email) return;
-    await sendRequestDecisionMail(requester.email, {
-      name: requester.firstName,
-      requestId: request.requestId,
-      itemName: request.itemName,
-      quantity: request.quantity,
-      busNumber: request.busNumber,
-      approved,
-      note: request.decisionNote || undefined,
-    });
-  })();
+  inBackground(
+    (async () => {
+      const requester = await User.findById(request.requestedBy);
+      if (!requester?.email) return;
+      await sendRequestDecisionMail(requester.email, {
+        name: requester.firstName,
+        requestId: request.requestId,
+        itemName: request.itemName,
+        quantity: request.quantity,
+        busNumber: request.busNumber,
+        approved,
+        note: request.decisionNote || undefined,
+      });
+    })().catch(() => undefined),
+  );
 };
 
 // GET /api/requests/bus-expense: approved spend grouped per bus

@@ -10,6 +10,7 @@ import Bus from "../models/Bus";
 import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { alertIfLowStock } from "../helpers/lowStock";
+import { inBackground } from "../helpers/background";
 import { sendRepairClosedMail } from "./nodemailer/mail.service";
 import {
   IRepairJob,
@@ -55,18 +56,20 @@ const sumParts = (parts: { amount: string }[]) =>
 // Fire-and-forget: lookup and send never block the response.
 const notifyOpener = (job: IRepairJob, closedBy: string): void => {
   if (String(job.openedBy) === closedBy) return;
-  void (async () => {
-    const opener = await User.findById(job.openedBy);
-    if (!opener?.email) return;
-    await sendRepairClosedMail(opener.email, {
-      name: opener.firstName,
-      jobId: job.jobId,
-      title: job.title,
-      completed: job.status === "completed",
-      totalCost: job.totalCost,
-      note: job.closeNote || undefined,
-    });
-  })();
+  inBackground(
+    (async () => {
+      const opener = await User.findById(job.openedBy);
+      if (!opener?.email) return;
+      await sendRepairClosedMail(opener.email, {
+        name: opener.firstName,
+        jobId: job.jobId,
+        title: job.title,
+        completed: job.status === "completed",
+        totalCost: job.totalCost,
+        note: job.closeNote || undefined,
+      });
+    })().catch(() => undefined),
+  );
 };
 
 // POST /api/repairs

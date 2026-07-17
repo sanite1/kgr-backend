@@ -2,6 +2,7 @@ import ApiError from "../../errors/apiError";
 import { IUser } from "../../interfaces/user.interface";
 import transporter from "./nodemailer";
 import logger from "../../config/logger";
+import { inBackground } from "../../helpers/background";
 
 // admin/console-side emails link here, NOT to the public website
 const CONSOLE_URL =
@@ -15,6 +16,8 @@ export interface MailAttachment {
 }
 
 // The ONE choke point. Everything else is a thin wrapper over this.
+// The actual send is registered with the serverless runtime (see
+// inBackground) so fire-and-forget callers survive function suspension.
 const sendTemplateMail = async (
   to: string,
   subject: string,
@@ -36,15 +39,23 @@ const sendTemplateMail = async (
   };
   if (attachments && attachments.length > 0)
     mailOptions.attachments = attachments;
-  try {
-    await transporter.sendMail(mailOptions);
-    logger.info(`Email sent: "${subject}" to ${to}`);
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Unknown error";
-    logger.error(`Failed to send email: "${subject}" to ${to}`, { error: msg });
-    if (throwOnError) throw new ApiError(500, `Error sending email: ${msg}`);
-    // else swallow: a failed email never breaks the calling flow
-  }
+
+  const task = (async () => {
+    try {
+      await transporter.sendMail(mailOptions);
+      logger.info(`Email sent: "${subject}" to ${to}`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      logger.error(`Failed to send email: "${subject}" to ${to}`, {
+        error: msg,
+      });
+      if (throwOnError) throw new ApiError(500, `Error sending email: ${msg}`);
+      // else swallow: a failed email never breaks the calling flow
+    }
+  })();
+
+  inBackground(task.catch(() => undefined));
+  return task;
 };
 
 // One wrapper per template:
