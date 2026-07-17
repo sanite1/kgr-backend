@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light only" />
+    <title>New conversion request</title>
+  </head>
+  <body style="margin:0; padding:0; background:#f5f7fa; font-family:Arial, Helvetica, sans-serif;">
+    <div style="display:none; max-height:0; overflow:hidden;">
+      Conversion request #{{requestId}} is waiting in the console.
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px; width:100%; background:#ffffff; border-radius:16px; overflow:hidden;">
+            <tr>
+              <td style="background:linear-gradient(135deg, #0FA53A, #0FF338); height:6px; font-size:0; line-height:0;">&nbsp;</td>
+            </tr>
+            <tr>
+              <td style="padding:28px 40px 0 40px;">
+                <img src="https://res.cloudinary.com/dv4uk8qqc/image/upload/v1783950063/kgr-logo-trans_vawoma.png" width="130" alt="KGR Partners" style="display:block;" />
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 40px 8px 40px;">
+                <h1 style="margin:0; font-size:20px; color:#0D1F15;">New conversion request #{{requestId}}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 40px 0 40px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px; color:#4C5B51;">
+                  <tr>
+                    <td style="padding:6px 0; width:160px; font-weight:bold; color:#0D1F15;">Name</td>
+                    <td style="padding:6px 0;">{{name}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0; font-weight:bold; color:#0D1F15;">Email</td>
+                    <td style="padding:6px 0;">{{email}}</td>
+                  </tr>
+                  {{#if phone}}
+                  <tr>
+                    <td style="padding:6px 0; font-weight:bold; color:#0D1F15;">Phone</td>
+                    <td style="padding:6px 0;">{{phone}}</td>
+                  </tr>
+                  {{/if}}
+                  <tr>
+                    <td style="padding:6px 0; font-weight:bold; color:#0D1F15;">Answered fields</td>
+                    <td style="padding:6px 0;">{{answered}}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            {{#if remarks}}
+            <tr>
+              <td style="padding:20px 40px 0 40px;">
+                <div style="background:#F7FAF7; border:1px solid #E8ECE8; border-radius:10px; padding:16px 18px; font-size:14px; line-height:1.7; color:#0D1F15; white-space:pre-line;">{{remarks}}</div>
+              </td>
+            </tr>
+            {{/if}}
+            <tr>
+              <td style="padding:24px 40px 8px 40px;" align="left">
+                <a href="{{consoleUrl}}" style="display:inline-block; background:#0FA53A; color:#ffffff; text-decoration:none; font-weight:bold; font-size:14px; padding:12px 28px; border-radius:10px;">Open it in the console →</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 40px 32px 40px; font-size:12px; color:#7A877E;">
+                The full technical sheet is in the console under Conversions.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -20,3 +20,5 @@ export type BatteryStatus =
 export type BatteryMoveAction = "issue" | "collect" | "status";
 
 export type RepairStatus = "open" | "completed" | "cancelled";
+
+export type ConversionStatus = "new" | "in_review" | "contacted" | "closed";

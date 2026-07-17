@@ -64,6 +64,7 @@ import partRequestRoutes from "./routes/partRequest.routes";
 import batteryRoutes from "./routes/battery.routes";
 import repairRoutes from "./routes/repair.routes";
 import reportRoutes from "./routes/report.routes";
+import conversionRoutes from "./routes/conversion.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -140,6 +141,7 @@ app.use("/api/requests", partRequestRoutes);
 app.use("/api/batteries", batteryRoutes);
 app.use("/api/repairs", repairRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/conversions", conversionRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

@@ -90,3 +90,35 @@ export const sendContactAutoReplyMail = async (
     context,
   );
 };
+
+export const sendConversionConfirmationMail = async (
+  senderEmail: string,
+  context: { name: string; requestId: number },
+) => {
+  await sendTemplateMail(
+    senderEmail,
+    `We've received your conversion sheet (#${context.requestId}): KGR Partners`,
+    "./conversionconfirmation",
+    context,
+  );
+};
+
+export const sendConversionNotificationMail = async (
+  notificationEmail: string,
+  context: {
+    requestId: number;
+    name: string;
+    email: string;
+    phone: string;
+    remarks: string;
+    answered: number;
+    consoleUrl: string;
+  },
+) => {
+  await sendTemplateMail(
+    notificationEmail,
+    `New conversion request #${context.requestId} from ${context.name}`,
+    "./conversionnotification",
+    context,
+  );
+};
