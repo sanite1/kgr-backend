@@ -48,7 +48,9 @@ const sendTemplateMail = async (
 };
 
 // One wrapper per template:
-export const sendWelcomeMail = async (user: IUser) => {
+// password is the plaintext starting password, shown once so the new
+// user can sign in; the template urges changing it after first login.
+export const sendWelcomeMail = async (user: IUser, password: string) => {
   await sendTemplateMail(
     user.email,
     "Your KGR Partners account is ready",
@@ -56,6 +58,7 @@ export const sendWelcomeMail = async (user: IUser) => {
     {
       name: user.firstName,
       email: user.email,
+      password,
       role: user.role,
       dashboardUrl: CONSOLE_URL,
     },

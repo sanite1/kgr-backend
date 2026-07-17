@@ -29,8 +29,9 @@ export const createUserService = async (
     createdBy,
   });
 
-  // fire-and-forget: a failed email never breaks user creation
-  void sendWelcomeMail(user);
+  // fire-and-forget: a failed email never breaks user creation.
+  // pass the plaintext password (pre-hash) so the email can show it once.
+  void sendWelcomeMail(user, payload.password);
 
   return new ApiResponse(201, "User created successfully", user.toJSON());
 };

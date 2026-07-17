@@ -75,6 +75,13 @@ validateEnv();
 const PORT = process.env.PORT || 4000;
 const app = express();
 
+// Behind a managed host or reverse proxy (Render, Railway, nginx...),
+// trust the first proxy hop so req.ip is the real client, not the proxy.
+// Without this, IP-based rate limiting buckets every user together.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Webhook raw-body parsers (e.g. payment providers) go HERE,
 //    BEFORE express.json(), when webhooks are added
 
