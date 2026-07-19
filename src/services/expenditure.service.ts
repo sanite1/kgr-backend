@@ -13,6 +13,7 @@ import {
   IUpdateExpenditure,
   IExpendituresQuery,
   IExpenditureSummaryQuery,
+  ISourceExpenditure,
 } from "../interfaces/expenditure.interface";
 
 const EXPENDITURE_ID_START = Number(process.env.EXPENDITURE_ID_START) || 1;
@@ -130,6 +131,17 @@ export const createExpenditureService = async (
   );
 };
 
+// Auto entries (from requests/repairs) are owned by their source and
+// must not be hand-edited, or they drift out of sync.
+const guardManual = (source: string) => {
+  if (source === "part_request" || source === "repair") {
+    throw new ApiError(
+      400,
+      "This entry is generated from its request or repair and updates automatically.",
+    );
+  }
+};
+
 export const updateExpenditureService = async (
   id: string,
   payload: IUpdateExpenditure,
@@ -137,6 +149,7 @@ export const updateExpenditureService = async (
 ) => {
   const expenditure = await Expenditure.findById(id);
   if (!expenditure) throw new ApiError(404, "Expenditure not found");
+  guardManual(expenditure.source);
 
   if (payload.categoryId) {
     const category = await resolveCategory(
@@ -171,6 +184,7 @@ export const updateExpenditureService = async (
 export const deleteExpenditureService = async (id: string) => {
   const expenditure = await Expenditure.findById(id);
   if (!expenditure) throw new ApiError(404, "Expenditure not found");
+  guardManual(expenditure.source);
   await expenditure.deleteOne();
   return new ApiResponse(
     200,
@@ -184,10 +198,17 @@ const buildFilter = (query: {
   from?: string;
   to?: string;
   search?: string;
+  status?: string;
+  source?: string;
 }) => {
   const filter: Record<string, any> = {};
   if (query.busId) filter.bus = query.busId;
   if (query.categoryId) filter.category = query.categoryId;
+  if (query.source) filter.source = query.source;
+  // cancelled entries (reversed repairs) are hidden and excluded from
+  // totals unless explicitly asked for
+  if (query.status) filter.status = query.status;
+  else filter.status = { $ne: "cancelled" };
   if (query.from || query.to) {
     filter.date = {};
     if (query.from) filter.date.$gte = query.from;
@@ -295,5 +316,59 @@ export const getExpenditureSummaryService = async (
       total: String(b.total),
       count: b.count,
     })),
+  });
+};
+
+// ---- Automated sync from inventory-consuming operations ----
+
+// Called by the part-request and repair services whenever stock leaves
+// inventory for a purpose. Idempotent: one expenditure per source op,
+// created on first call and kept in sync (amount/status) after.
+export const upsertSourceExpenditure = async (
+  params: ISourceExpenditure,
+): Promise<void> => {
+  const category = await resolveCategory(
+    undefined,
+    params.categoryName,
+    params.recordedBy,
+  );
+
+  const existing = await Expenditure.findOne({
+    source: params.source,
+    sourceRef: params.sourceRef,
+  });
+
+  if (existing) {
+    existing.status = params.status;
+    existing.amount = params.amount;
+    existing.category = category._id as any;
+    existing.categoryName = category.name;
+    existing.description = params.description;
+    if (params.busId) {
+      existing.bus = params.busId as any;
+      existing.busNumber = params.busNumber;
+    }
+    await existing.save();
+    return;
+  }
+
+  const expenditureId = await nextSequence(
+    "expenditure_id",
+    EXPENDITURE_ID_START,
+  );
+  await Expenditure.create({
+    expenditureId,
+    date: dayString(),
+    amount: params.amount,
+    category: category._id,
+    categoryName: category.name,
+    bus: params.busId,
+    busNumber: params.busNumber,
+    description: params.description,
+    note: "",
+    source: params.source,
+    sourceRef: params.sourceRef,
+    status: params.status,
+    recordedBy: params.recordedBy,
   });
 };

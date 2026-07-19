@@ -10,7 +10,15 @@ import { nextSequence } from "../helpers/sequence";
 import { dayString } from "../helpers/day";
 import { alertIfLowStock } from "../helpers/lowStock";
 import { inBackground } from "../helpers/background";
+import { upsertSourceExpenditure } from "./expenditure.service";
 import { sendRequestDecisionMail } from "./nodemailer/mail.service";
+
+// inventory item category -> expenditure folder
+const ITEM_CATEGORY_FOLDER: Record<string, string> = {
+  part: "Parts",
+  battery: "Batteries",
+  consumable: "Consumables",
+};
 import {
   IPartRequest,
   ICreatePartRequest,
@@ -162,6 +170,19 @@ export const approvePartRequestService = async (
   request.decidedAt = new Date();
   request.decisionNote = payload.note || "";
   await request.save();
+
+  // stock left inventory for this bus: book it as an expenditure
+  await upsertSourceExpenditure({
+    source: "part_request",
+    sourceRef: String(request._id),
+    status: "completed",
+    amount: request.amount,
+    categoryName: ITEM_CATEGORY_FOLDER[item.category] || "Spare Parts",
+    description: `Request #${request.requestId}: ${request.itemName} x ${request.quantity}`,
+    busId: String(request.bus),
+    busNumber: request.busNumber,
+    recordedBy: decidedBy,
+  });
 
   notifyRequester(request, decidedBy, true);
 

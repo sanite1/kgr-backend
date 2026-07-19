@@ -11,7 +11,24 @@ import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { alertIfLowStock } from "../helpers/lowStock";
 import { inBackground } from "../helpers/background";
+import { upsertSourceExpenditure } from "./expenditure.service";
 import { sendRepairClosedMail } from "./nodemailer/mail.service";
+import { ExpenditureStatus } from "../interfaces/expenditure.interface";
+
+// Keeps the repair's expenditure in step: pending while open, completed
+// when closed, cancelled (excluded from totals) when reversed.
+const syncRepairExpenditure = (job: IRepairJob, status: ExpenditureStatus) =>
+  upsertSourceExpenditure({
+    source: "repair",
+    sourceRef: String(job._id),
+    status,
+    amount: job.totalCost,
+    categoryName: "Repairs",
+    description: `Repair #${job.jobId}: ${job.title}`,
+    busId: job.bus ? String(job.bus) : undefined,
+    busNumber: job.busNumber,
+    recordedBy: String(job.openedBy),
+  });
 import {
   IRepairJob,
   ICreateRepairJob,
@@ -162,6 +179,8 @@ export const createRepairJobService = async (
     });
   }
 
+  await syncRepairExpenditure(job, "pending");
+
   return new ApiResponse(201, `Repair #${jobId} opened`, job.toJSON());
 };
 
@@ -246,6 +265,8 @@ export const addRepairPartService = async (
   job.totalCost = money(Number(job.partsCost) + Number(job.laborCost));
   await job.save();
 
+  await syncRepairExpenditure(job, "pending");
+
   return new ApiResponse(
     200,
     `${item.name} added to repair #${job.jobId}`,
@@ -292,6 +313,8 @@ export const completeRepairJobService = async (
       });
     }
   }
+
+  await syncRepairExpenditure(job, "completed");
 
   return new ApiResponse(200, `Repair #${job.jobId} completed`, job.toJSON());
 };
@@ -349,6 +372,8 @@ export const cancelRepairJobService = async (
       });
     }
   }
+
+  await syncRepairExpenditure(job, "cancelled");
 
   return new ApiResponse(200, `Repair #${job.jobId} cancelled`, job.toJSON());
 };
