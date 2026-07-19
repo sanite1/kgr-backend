@@ -24,6 +24,8 @@ export interface IPaymentsQuery {
 
 export interface IDailyAccountQuery {
   date?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface IExportPaymentsQuery {

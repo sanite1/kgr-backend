@@ -3,6 +3,7 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Payment from "../models/Payment";
 import Receipt from "../models/Receipt";
+import User from "../models/User";
 import { dayString } from "../helpers/day";
 import { MANAGERS } from "../config/roles";
 import { UserRole } from "../interfaces/helper.interface";
@@ -110,80 +111,104 @@ export const getPaymentsService = async (
   );
 };
 
-// GET /api/payments/daily-account: the reconciliation ledger for one day
+// GET /api/payments/daily-account: the reconciliation ledger for one day.
+// Totals and the cashier breakdown are aggregated over EVERY payment of
+// the day; only the transaction rows are paginated.
 export const getDailyAccountService = async (query: IDailyAccountQuery) => {
   const date = query.date || dayString();
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
 
-  const [receiptAgg, payments] = await Promise.all([
-    Receipt.aggregate([
-      { $match: { date } },
-      {
-        $group: {
-          _id: null,
-          issuedCount: {
-            $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] },
-          },
-          expected: {
-            $sum: {
-              $cond: [
-                { $ne: ["$status", "void"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
+  const [receiptAgg, moneyAgg, cashierAgg, totalItems, pagePayments] =
+    await Promise.all([
+      Receipt.aggregate([
+        { $match: { date } },
+        {
+          $group: {
+            _id: null,
+            issuedCount: {
+              $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] },
+            },
+            expected: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "void"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
             },
           },
         },
-      },
-    ]),
-    Payment.find({ date })
-      .sort({ createdAt: -1 })
-      .limit(2000)
-      .populate("receipt", "billId ticketId busNumber date")
-      .populate("collectedBy", "firstName lastName"),
-  ]);
+      ]),
+      // collected total, split into today's receipts vs arrears
+      Payment.aggregate([
+        { $match: { date } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $toDouble: "$amount" } },
+            fromToday: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$receiptDate", date] },
+                  { $toDouble: "$amount" },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+      // per-cashier totals
+      Payment.aggregate([
+        { $match: { date } },
+        {
+          $group: {
+            _id: "$collectedBy",
+            count: { $sum: 1 },
+            amount: { $sum: { $toDouble: "$amount" } },
+          },
+        },
+        { $sort: { amount: -1 } },
+      ]),
+      Payment.countDocuments({ date }),
+      Payment.find({ date })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .populate("receipt", "billId ticketId busNumber date")
+        .populate("collectedBy", "firstName lastName"),
+    ]);
 
   const receipts = receiptAgg[0] || { issuedCount: 0, expected: 0 };
+  const money = moneyAgg[0] || { total: 0, fromToday: 0 };
 
-  let collectedTotal = 0;
-  let collectedFromToday = 0;
-  let collectedFromArrears = 0;
-  const cashierMap = new Map<
-    string,
-    { name: string; count: number; amount: number }
-  >();
-
-  for (const p of payments) {
-    const amount = Number(p.amount);
-    collectedTotal += amount;
-    if (p.receiptDate === date) collectedFromToday += amount;
-    else collectedFromArrears += amount;
-
-    const collector = p.collectedBy as any;
-    const id = String(collector?._id ?? collector);
-    const name = collector?.firstName
-      ? `${collector.firstName} ${collector.lastName}`
-      : "Unknown";
-    const entry = cashierMap.get(id) || { name, count: 0, amount: 0 };
-    entry.count += 1;
-    entry.amount += amount;
-    cashierMap.set(id, entry);
-  }
+  // put names to the cashier ids
+  const cashierIds = cashierAgg.map((c: any) => c._id).filter(Boolean);
+  const users = await User.find({ _id: { $in: cashierIds } }).select(
+    "firstName lastName",
+  );
+  const nameById = new Map(
+    users.map((u) => [String(u._id), `${u.firstName} ${u.lastName}`]),
+  );
 
   return new ApiResponse(200, "Daily account retrieved successfully", {
     date,
     receiptsIssued: receipts.issuedCount,
     expectedAmount: String(receipts.expected),
-    collectedTotal: String(collectedTotal),
-    collectedFromToday: String(collectedFromToday),
-    collectedFromArrears: String(collectedFromArrears),
-    outstandingToday: String(receipts.expected - collectedFromToday),
-    cashiers: Array.from(cashierMap.entries()).map(([id, c]) => ({
-      id,
-      name: c.name,
+    collectedTotal: String(money.total),
+    collectedFromToday: String(money.fromToday),
+    collectedFromArrears: String(money.total - money.fromToday),
+    outstandingToday: String(receipts.expected - money.fromToday),
+    cashiers: cashierAgg.map((c: any) => ({
+      id: String(c._id),
+      name: nameById.get(String(c._id)) || "Unknown",
       count: c.count,
       amount: String(c.amount),
     })),
-    payments: payments.map((p) => p.toJSON()),
+    payments: pagePayments.map((p) => p.toJSON()),
+    pagination: PaginatedResponse.buildPagination(page, pageSize, totalItems),
   });
 };
 

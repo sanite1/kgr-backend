@@ -32,6 +32,8 @@ export const dailyAccountValidation = () =>
     {
       query: Joi.object({
         date: Joi.string().pattern(dayPattern),
+        page: Joi.number().integer().min(1),
+        pageSize: Joi.number().integer().min(1).max(100),
       }),
     },
     { context: true },
