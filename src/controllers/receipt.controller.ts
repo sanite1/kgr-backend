@@ -112,6 +112,7 @@ export const getReceiptSummary = async (
   try {
     const result = await getReceiptSummaryService(
       req.query as IReceiptSummaryQuery,
+      { id: String(req.user?._id), role: req.user!.role },
     );
     sendResponse(res, result);
   } catch (error) {

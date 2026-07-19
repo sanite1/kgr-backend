@@ -1,11 +1,15 @@
+import { Types } from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Receipt from "../models/Receipt";
+import Payment from "../models/Payment";
 import Bus from "../models/Bus";
 import { findCurrentTripPrice } from "./tripPrice.service";
 import { nextSequence } from "../helpers/sequence";
 import { dayString, lastNDays } from "../helpers/day";
+import { MANAGERS } from "../config/roles";
+import { UserRole } from "../interfaces/helper.interface";
 import {
   ICreateReceiptRequest,
   IReceiptsQuery,
@@ -248,11 +252,79 @@ export const getOutstandingSummaryService = async () => {
   });
 };
 
-// GET /api/receipts/summary: dashboard figures for one day, the
-// running month, and a 7-day trend
-export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
+// Personal dashboard for non-managers: only the requester's own
+// figures. A cashier never sees the whole yard's money or a colleague's
+// collections; the numbers are scoped to them on the server, not hidden
+// on the client.
+const getPersonalSummary = async (
+  userId: string,
+  date: string,
+  days: string[],
+): Promise<ApiResponse<Record<string, unknown>>> => {
+  const uid = new Types.ObjectId(userId);
+
+  const [payToday, receiptsToday, paySeries, checkedInToday] =
+    await Promise.all([
+      Payment.aggregate([
+        { $match: { collectedBy: uid, date } },
+        { $group: { _id: null, total: { $sum: { $toDouble: "$amount" } } } },
+      ]),
+      Receipt.aggregate([
+        { $match: { issuedBy: uid, date, status: { $ne: "void" } } },
+        {
+          $group: {
+            _id: null,
+            issued: { $sum: 1 },
+            buses: { $addToSet: "$bus" },
+            trips: { $sum: "$expectedTrips" },
+          },
+        },
+      ]),
+      Payment.aggregate([
+        { $match: { collectedBy: uid, date: { $in: days } } },
+        {
+          $group: {
+            _id: "$date",
+            collected: { $sum: { $toDouble: "$amount" } },
+          },
+        },
+      ]),
+      Receipt.countDocuments({ checkedInBy: uid, date }),
+    ]);
+
+  const r = receiptsToday[0] || { issued: 0, buses: [], trips: 0 };
+  const seriesByDate = new Map(paySeries.map((s: any) => [s._id, s.collected]));
+
+  return new ApiResponse(200, "Summary retrieved successfully", {
+    scope: "personal",
+    date,
+    myCollectedToday: String(payToday[0]?.total ?? 0),
+    myReceiptsToday: r.issued,
+    myBusesToday: r.buses.length,
+    myTripsToday: r.trips,
+    myCheckedInToday: checkedInToday,
+    series: days.map((d) => ({
+      date: d,
+      collectedAmount: String(seriesByDate.get(d) ?? 0),
+      expectedAmount: "0",
+    })),
+  });
+};
+
+// GET /api/receipts/summary: dashboard figures, scoped by role.
+// Managers/admin get the whole yard for one day, the running month and
+// a 7-day trend; everyone else gets only their own figures.
+export const getReceiptSummaryService = async (
+  query: IReceiptSummaryQuery,
+  user: { id: string; role: UserRole },
+): Promise<ApiResponse<Record<string, unknown>>> => {
   const date = query.date || dayString();
   const days = lastNDays(7);
+
+  if (!MANAGERS.includes(user.role)) {
+    return getPersonalSummary(user.id, date, days);
+  }
+
   const monthPrefix = new RegExp(`^${date.slice(0, 7)}-`);
 
   const [dayAgg, seriesAgg, monthAgg] = await Promise.all([
@@ -374,6 +446,7 @@ export const getReceiptSummaryService = async (query: IReceiptSummaryQuery) => {
   const month = monthAgg[0] || { issued: 0, collected: 0 };
 
   return new ApiResponse(200, "Summary retrieved successfully", {
+    scope: "global",
     date,
     issuedCount: agg.issuedCount,
     expectedAmount: String(agg.expected),

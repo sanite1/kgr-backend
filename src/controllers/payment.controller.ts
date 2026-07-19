@@ -35,10 +35,10 @@ export const getPayments = async (
   next: NextFunction,
 ) => {
   try {
-    const result = await getPaymentsService(
-      req.query as IPaymentsQuery,
-      String(req.user?._id),
-    );
+    const result = await getPaymentsService(req.query as IPaymentsQuery, {
+      id: String(req.user?._id),
+      role: req.user!.role,
+    });
     sendResponse(res, result);
   } catch (error) {
     next(error);
@@ -69,7 +69,7 @@ export const exportPayments = async (
   try {
     const { filename, csv } = await exportPaymentsCsvService(
       req.query as IExportPaymentsQuery,
-      String(req.user?._id),
+      { id: String(req.user?._id), role: req.user!.role },
     );
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

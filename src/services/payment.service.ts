@@ -4,6 +4,8 @@ import ApiError from "../errors/apiError";
 import Payment from "../models/Payment";
 import Receipt from "../models/Receipt";
 import { dayString } from "../helpers/day";
+import { MANAGERS } from "../config/roles";
+import { UserRole } from "../interfaces/helper.interface";
 import {
   IPayReceiptRequest,
   IPaymentsQuery,
@@ -56,15 +58,20 @@ const resolveCollector = (
 // GET /api/payments
 export const getPaymentsService = async (
   query: IPaymentsQuery,
-  requesterId: string,
+  requester: { id: string; role: UserRole },
 ) => {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
 
   const filter: Record<string, any> = {};
   if (query.date) filter.date = query.date;
-  const collector = resolveCollector(query.collectedBy, requesterId);
-  if (collector) filter.collectedBy = collector;
+  // non-managers only ever see their OWN collections, whatever they ask
+  if (!MANAGERS.includes(requester.role)) {
+    filter.collectedBy = requester.id;
+  } else {
+    const collector = resolveCollector(query.collectedBy, requester.id);
+    if (collector) filter.collectedBy = collector;
+  }
 
   const [payments, totalItems] = await Promise.all([
     Payment.find(filter)
@@ -165,12 +172,17 @@ export const getDailyAccountService = async (query: IDailyAccountQuery) => {
 // GET /api/payments/export: CSV of a day's collections (optionally one cashier)
 export const exportPaymentsCsvService = async (
   query: IExportPaymentsQuery,
-  requesterId: string,
+  requester: { id: string; role: UserRole },
 ): Promise<{ filename: string; csv: string }> => {
   const date = query.date || dayString();
   const filter: Record<string, any> = { date };
-  const collector = resolveCollector(query.collectedBy, requesterId);
-  if (collector) filter.collectedBy = collector;
+  // non-managers export only their own shift
+  if (!MANAGERS.includes(requester.role)) {
+    filter.collectedBy = requester.id;
+  } else {
+    const collector = resolveCollector(query.collectedBy, requester.id);
+    if (collector) filter.collectedBy = collector;
+  }
 
   const payments = await Payment.find(filter)
     .sort({ createdAt: 1 })
