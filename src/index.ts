@@ -43,6 +43,8 @@ process.on("unhandledRejection", (reason, _promise) => {
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config();
+// registers the global mongoose safety net; must run before models compile
+import "./config/mongoosePlugins";
 import cors from "cors";
 import { connectDb } from "./config/db";
 import { connectRedis } from "./config/redis";
