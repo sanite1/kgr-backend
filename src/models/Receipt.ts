@@ -16,7 +16,7 @@ const receiptSchema = new Schema<IReceipt>(
     batteryPercent: { type: Number, required: true, min: 0, max: 200 },
     voltage: { type: Number, default: 0, min: 0 },
     timeOut: { type: String, required: true },
-    expectedTrips: { type: Number, required: true, min: 1 },
+    expectedTrips: { type: Number, required: true, min: 0.5 },
     unitPrice: { type: String, required: true },
     expectedAmount: { type: String, required: true },
     date: { type: String, required: true, index: true },

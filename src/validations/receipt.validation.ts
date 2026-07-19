@@ -15,7 +15,8 @@ export const createReceiptValidation = () =>
         timeOut: Joi.string()
           .pattern(/^([01]\d|2[0-3]):[0-5]\d$/)
           .required(),
-        expectedTrips: Joi.number().integer().min(1).max(50).required(),
+        // half trips allowed (a final one-way run), priced proportionally
+        expectedTrips: Joi.number().min(0.5).max(50).multiple(0.5).required(),
         checkIn: Joi.boolean(),
         allowDuplicate: Joi.boolean(),
       }),

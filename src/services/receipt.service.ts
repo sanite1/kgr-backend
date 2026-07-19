@@ -65,7 +65,10 @@ export const createReceiptService = async (
 
   const billId = await nextSequence("receipt_bill_id", BILL_ID_START);
   const ticketId = await uniqueTicketId();
-  const expectedAmount = String(payload.expectedTrips * Number(price.amount));
+  // round to kobo so fractional trips never yield float artifacts
+  const expectedAmount = String(
+    Math.round(payload.expectedTrips * Number(price.amount) * 100) / 100,
+  );
 
   const receipt = await Receipt.create({
     billId,
