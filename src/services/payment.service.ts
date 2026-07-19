@@ -27,23 +27,41 @@ export const payReceiptService = async (
     throw new ApiError(400, `Receipt #${receipt.billId} is already paid`);
   }
 
-  const payment = await Payment.create({
-    receipt: receipt._id,
-    amount: receipt.expectedAmount,
-    method: "cash",
-    collectedBy,
-    date: dayString(),
-    receiptDate: receipt.date,
-  });
+  // Atomically claim the receipt: the status guard means only ONE request
+  // can flip awaiting -> paid, so a retried or concurrent pay can never
+  // create a second payment. findOneAndUpdate also skips whole-document
+  // validation, so older receipts save cleanly.
+  const claimed = await Receipt.findOneAndUpdate(
+    { _id: receipt._id, status: "awaiting_payment" },
+    { status: "paid", paidAt: new Date(), paidBy: collectedBy },
+    { new: true },
+  );
+  if (!claimed) {
+    throw new ApiError(400, `Receipt #${receipt.billId} is already paid`);
+  }
 
-  receipt.status = "paid";
-  receipt.paidAt = new Date();
-  receipt.paidBy = collectedBy as any;
-  await receipt.save();
+  let payment;
+  try {
+    payment = await Payment.create({
+      receipt: claimed._id,
+      amount: claimed.expectedAmount,
+      method: "cash",
+      collectedBy,
+      date: dayString(),
+      receiptDate: claimed.date,
+    });
+  } catch (err) {
+    // release the claim so the receipt can be paid again
+    await Receipt.updateOne(
+      { _id: claimed._id },
+      { status: "awaiting_payment", $unset: { paidAt: "", paidBy: "" } },
+    );
+    throw err;
+  }
 
-  return new ApiResponse(201, `Receipt #${receipt.billId} marked paid`, {
+  return new ApiResponse(201, `Receipt #${claimed.billId} marked paid`, {
     payment: payment.toJSON(),
-    receipt: receipt.toJSON(),
+    receipt: claimed.toJSON(),
   });
 };
 

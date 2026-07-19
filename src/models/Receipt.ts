@@ -12,10 +12,12 @@ const receiptSchema = new Schema<IReceipt>(
       index: true,
     },
     busNumber: { type: String, required: true, index: true },
-    batteryName: { type: String, required: true, trim: true },
-    batteryPercent: { type: Number, required: true, min: 0, max: 200 },
+    // enforced at creation by Joi; NOT model-required so status changes
+    // on receipts issued before these fields existed still save cleanly
+    batteryName: { type: String, default: "", trim: true },
+    batteryPercent: { type: Number, default: 0, min: 0, max: 200 },
     voltage: { type: Number, default: 0, min: 0 },
-    timeOut: { type: String, required: true },
+    timeOut: { type: String, default: "" },
     expectedTrips: { type: Number, required: true, min: 0.5 },
     unitPrice: { type: String, required: true },
     expectedAmount: { type: String, required: true },
