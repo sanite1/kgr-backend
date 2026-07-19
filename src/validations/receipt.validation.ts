@@ -9,6 +9,12 @@ export const createReceiptValidation = () =>
     {
       body: Joi.object({
         busId: Joi.string().hex().length(24).required(),
+        batteryName: Joi.string().trim().min(1).max(50).required(),
+        batteryPercent: Joi.number().integer().min(0).max(200).required(),
+        voltage: Joi.number().min(0).max(1000),
+        timeOut: Joi.string()
+          .pattern(/^([01]\d|2[0-3]):[0-5]\d$/)
+          .required(),
         expectedTrips: Joi.number().integer().min(1).max(50).required(),
         checkIn: Joi.boolean(),
         allowDuplicate: Joi.boolean(),

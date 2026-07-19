@@ -6,6 +6,10 @@ export interface IReceipt extends Document {
   ticketId: string; // random 8-digit code staff read aloud / QR-verify
   bus: Types.ObjectId;
   busNumber: string; // snapshot so history survives renames
+  batteryName: string; // battery on the bus at issuance, e.g. "KAMILA 9"
+  batteryPercent: number; // charge level read off the pack
+  voltage: number; // pack voltage, 0 when not recorded
+  timeOut: string; // departure time, HH:MM (Lagos)
   expectedTrips: number;
   unitPrice: string; // trip price snapshot at issuance
   expectedAmount: string; // expectedTrips x unitPrice
@@ -26,6 +30,10 @@ export interface IReceipt extends Document {
 
 export interface ICreateReceiptRequest {
   busId: string;
+  batteryName: string;
+  batteryPercent: number;
+  voltage?: number;
+  timeOut: string; // HH:MM
   expectedTrips: number;
   checkIn?: boolean;
   // a bus normally gets one receipt per day; the frontend re-sends with
