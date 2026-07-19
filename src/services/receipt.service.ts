@@ -330,102 +330,112 @@ export const getReceiptSummaryService = async (
 
   const monthPrefix = new RegExp(`^${date.slice(0, 7)}-`);
 
-  const [dayAgg, seriesAgg, monthAgg] = await Promise.all([
-    Receipt.aggregate([
-      { $match: { date } },
-      {
-        $group: {
-          _id: null,
-          issuedCount: {
-            $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] },
-          },
-          expected: {
-            $sum: {
-              $cond: [
-                { $ne: ["$status", "void"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
+  const [dayAgg, seriesAgg, monthAgg, busesActive, workingBusIds] =
+    await Promise.all([
+      Receipt.aggregate([
+        { $match: { date } },
+        {
+          $group: {
+            _id: null,
+            issuedCount: {
+              $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] },
             },
-          },
-          collected: {
-            $sum: {
-              $cond: [
-                { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
+            expected: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "void"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
             },
-          },
-          trips: {
-            $sum: {
-              $cond: [{ $ne: ["$status", "void"] }, "$expectedTrips", 0],
+            collected: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "paid"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
             },
-          },
-          checkedIn: {
-            $sum: {
-              $cond: [
-                {
-                  $and: ["$checkedIn", { $ne: ["$status", "void"] }],
-                },
-                1,
-                0,
-              ],
+            trips: {
+              $sum: {
+                $cond: [{ $ne: ["$status", "void"] }, "$expectedTrips", 0],
+              },
             },
-          },
-          awaitingCount: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "awaiting_payment"] }, 1, 0],
+            checkedIn: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: ["$checkedIn", { $ne: ["$status", "void"] }],
+                  },
+                  1,
+                  0,
+                ],
+              },
             },
-          },
-        },
-      },
-    ]),
-    Receipt.aggregate([
-      { $match: { date: { $in: days } } },
-      {
-        $group: {
-          _id: "$date",
-          expected: {
-            $sum: {
-              $cond: [
-                { $ne: ["$status", "void"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
-            },
-          },
-          collected: {
-            $sum: {
-              $cond: [
-                { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
+            awaitingCount: {
+              $sum: {
+                $cond: [{ $eq: ["$status", "awaiting_payment"] }, 1, 0],
+              },
             },
           },
         },
-      },
-    ]),
-    Receipt.aggregate([
-      { $match: { date: monthPrefix } },
-      {
-        $group: {
-          _id: null,
-          issued: { $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] } },
-          collected: {
-            $sum: {
-              $cond: [
-                { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
-                0,
-              ],
+      ]),
+      Receipt.aggregate([
+        { $match: { date: { $in: days } } },
+        {
+          $group: {
+            _id: "$date",
+            expected: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "void"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
+            },
+            collected: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "paid"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
             },
           },
         },
-      },
-    ]),
-  ]);
+      ]),
+      Receipt.aggregate([
+        { $match: { date: monthPrefix } },
+        {
+          $group: {
+            _id: null,
+            issued: { $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] } },
+            collected: {
+              $sum: {
+                $cond: [
+                  { $eq: ["$status", "paid"] },
+                  { $toDouble: "$expectedAmount" },
+                  0,
+                ],
+              },
+            },
+            trips: {
+              $sum: {
+                $cond: [{ $ne: ["$status", "void"] }, "$expectedTrips", 0],
+              },
+            },
+          },
+        },
+      ]),
+      // total active fleet, and the buses that actually went out today
+      // (a bus works only if it has a non-void receipt - its gate ticket)
+      Bus.countDocuments({ isActive: true }),
+      Receipt.distinct("bus", { date, status: { $ne: "void" } }),
+    ]);
 
   const agg = dayAgg[0] || {
     issuedCount: 0,
@@ -446,7 +456,8 @@ export const getReceiptSummaryService = async (
     };
   });
 
-  const month = monthAgg[0] || { issued: 0, collected: 0 };
+  const month = monthAgg[0] || { issued: 0, collected: 0, trips: 0 };
+  const busesWorkingToday = workingBusIds.length;
 
   return new ApiResponse(200, "Summary retrieved successfully", {
     scope: "global",
@@ -460,6 +471,10 @@ export const getReceiptSummaryService = async (
     awaitingCount: agg.awaitingCount,
     monthCollected: String(month.collected),
     monthIssuedCount: month.issued,
+    monthTrips: month.trips,
+    busesActive,
+    busesWorkingToday,
+    busesIdleToday: Math.max(0, busesActive - busesWorkingToday),
     series,
   });
 };
