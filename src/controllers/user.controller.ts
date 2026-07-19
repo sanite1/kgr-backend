@@ -5,6 +5,7 @@ import {
   getUsersService,
   getUserService,
   updateUserService,
+  deleteUserService,
 } from "../services/user.service";
 import {
   ICreateUserRequest,
@@ -63,6 +64,22 @@ export const updateUser = async (
     const result = await updateUserService(
       req.params.id,
       req.body as IUpdateUserRequest,
+      String(req.user?._id),
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await deleteUserService(
+      req.params.id,
       String(req.user?._id),
     );
     sendResponse(res, result);

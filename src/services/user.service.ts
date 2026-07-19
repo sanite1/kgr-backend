@@ -3,6 +3,15 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import User from "../models/User";
+import Receipt from "../models/Receipt";
+import Payment from "../models/Payment";
+import PartRequest from "../models/PartRequest";
+import RepairJob from "../models/RepairJob";
+import StockMovement from "../models/StockMovement";
+import BatteryMovement from "../models/BatteryMovement";
+import Bus from "../models/Bus";
+import InventoryItem from "../models/InventoryItem";
+import Battery from "../models/Battery";
 import {
   ICreateUserRequest,
   IUpdateUserRequest,
@@ -121,4 +130,44 @@ export const updateUserService = async (
   }
 
   return new ApiResponse(200, "User updated successfully", user.toJSON());
+};
+
+// Any operational footprint that names this user. If present, a hard
+// delete would orphan the audit trail, so we refuse and steer to
+// deactivation instead.
+const hasActivity = async (userId: string): Promise<boolean> => {
+  const checks = await Promise.all([
+    Receipt.exists({ issuedBy: userId }),
+    Payment.exists({ collectedBy: userId }),
+    PartRequest.exists({ requestedBy: userId }),
+    RepairJob.exists({ openedBy: userId }),
+    StockMovement.exists({ by: userId }),
+    BatteryMovement.exists({ by: userId }),
+    Bus.exists({ createdBy: userId }),
+    InventoryItem.exists({ createdBy: userId }),
+    Battery.exists({ createdBy: userId }),
+  ]);
+  return checks.some(Boolean);
+};
+
+// DELETE /api/users/:id (admin). Only accounts with NO history can be
+// hard-deleted; anyone who has acted in the system must be disabled so
+// their records keep naming a real person.
+export const deleteUserService = async (id: string, actingUserId: string) => {
+  if (id === actingUserId) {
+    throw new ApiError(400, "You cannot delete your own account");
+  }
+
+  const user = await User.findById(id);
+  if (!user) throw new ApiError(404, "User not found");
+
+  if (await hasActivity(id)) {
+    throw new ApiError(
+      400,
+      "This user has activity on record. Disable the account instead so the history stays intact.",
+    );
+  }
+
+  await user.deleteOne();
+  return new ApiResponse(200, `${user.firstName} ${user.lastName} deleted`);
 };

@@ -12,6 +12,7 @@ import {
   getUsers,
   getUser,
   updateUser,
+  deleteUser,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -23,5 +24,6 @@ router.get("/", listUsersValidation(), getUsers);
 router.post("/", createUserValidation(), createUser);
 router.get("/:id", getUserValidation(), getUser);
 router.patch("/:id", updateUserValidation(), updateUser);
+router.delete("/:id", getUserValidation(), deleteUser);
 
 export default router;
