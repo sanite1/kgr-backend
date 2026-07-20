@@ -18,6 +18,8 @@ const ITEM_CATEGORY_FOLDER: Record<string, string> = {
   part: "Parts",
   battery: "Batteries",
   consumable: "Consumables",
+  solar: "Solar",
+  conversion: "Conversion Kits",
 };
 import {
   IPartRequest,

@@ -6,7 +6,7 @@ const inventoryItemSchema = new Schema<IInventoryItem>(
     name: { type: String, required: true, trim: true, index: true },
     category: {
       type: String,
-      enum: ["part", "battery", "consumable"],
+      enum: ["part", "battery", "consumable", "solar", "conversion"],
       default: "part",
       index: true,
     },

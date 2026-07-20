@@ -11,7 +11,7 @@ export const createItemValidation = () =>
       body: Joi.object({
         name: Joi.string().min(2).max(200).required(),
         category: Joi.string()
-          .valid("part", "battery", "consumable")
+          .valid("part", "battery", "consumable", "solar", "conversion")
           .required(),
         unit: Joi.string().max(30).allow(""),
         quantityOnHand: Joi.number().integer().min(0),
@@ -29,7 +29,13 @@ export const updateItemValidation = () =>
       params: idParam,
       body: Joi.object({
         name: Joi.string().min(2).max(200),
-        category: Joi.string().valid("part", "battery", "consumable"),
+        category: Joi.string().valid(
+          "part",
+          "battery",
+          "consumable",
+          "solar",
+          "conversion",
+        ),
         unit: Joi.string().max(30).allow(""),
         unitCost: money,
         minLevel: Joi.number().integer().min(0),
@@ -60,7 +66,13 @@ export const listItemsValidation = () =>
       query: Joi.object({
         page: Joi.number().integer().min(1),
         pageSize: Joi.number().integer().min(1).max(100),
-        category: Joi.string().valid("part", "battery", "consumable"),
+        category: Joi.string().valid(
+          "part",
+          "battery",
+          "consumable",
+          "solar",
+          "conversion",
+        ),
         isActive: Joi.string().valid("true", "false"),
         search: Joi.string().max(100).allow(""),
         lowStock: Joi.string().valid("true"),

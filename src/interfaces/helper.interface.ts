@@ -8,7 +8,8 @@ export type UserRole =
 
 export type ReceiptStatus = "awaiting_payment" | "paid" | "void";
 
-export type ItemCategory = "part" | "battery" | "consumable";
+export type ItemCategory =
+  "part" | "battery" | "consumable" | "solar" | "conversion";
 
 export type StockMovementType = "in" | "out" | "adjust";
 
