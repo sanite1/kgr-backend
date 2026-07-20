@@ -15,11 +15,12 @@ import {
 } from "../interfaces/battery.interface";
 
 const STATUS_LABEL: Record<string, string> = {
-  in_store: "in store",
-  charging: "charging",
-  on_bus: "on a bus",
+  active: "active",
   faulty: "faulty",
-  in_repair: "in repair",
+  charging: "charging",
+  fully_charged: "fully charged",
+  not_charged: "not charged",
+  not_in_use: "not in use",
 };
 
 // POST /api/batteries (admin)
@@ -34,7 +35,7 @@ export const createBatteryService = async (
     throw new ApiError(409, `Battery "${code}" is already registered`);
   }
 
-  const status = payload.status || "in_store";
+  const status = payload.status || "active";
   const battery = await Battery.create({
     code,
     status,
@@ -96,17 +97,22 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
 
 // GET /api/batteries/summary: counts per status for the board header
 export const getBatterySummaryService = async () => {
-  const rows = await Battery.aggregate([
-    { $match: { isActive: true } },
-    { $group: { _id: "$status", count: { $sum: 1 } } },
+  const [rows, onBus] = await Promise.all([
+    Battery.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
+    // bus assignment is tracked independently of status now
+    Battery.countDocuments({ isActive: true, bus: { $ne: null } }),
   ]);
 
   const counts: Record<string, number> = {
-    in_store: 0,
-    charging: 0,
-    on_bus: 0,
+    active: 0,
     faulty: 0,
-    in_repair: 0,
+    charging: 0,
+    fully_charged: 0,
+    not_charged: 0,
+    not_in_use: 0,
   };
   let total = 0;
   for (const row of rows) {
@@ -117,6 +123,7 @@ export const getBatterySummaryService = async () => {
   return new ApiResponse(200, "Battery summary retrieved successfully", {
     counts,
     total,
+    onBus,
   });
 };
 
@@ -143,7 +150,7 @@ export const updateBatteryService = async (
   }
   if (payload.notes !== undefined) battery.notes = payload.notes;
   if (payload.isActive !== undefined) {
-    if (payload.isActive === false && battery.status === "on_bus") {
+    if (payload.isActive === false && battery.bus) {
       throw new ApiError(
         400,
         `${battery.code} is on ${battery.busNumber}; collect it before retiring`,
@@ -177,7 +184,9 @@ export const updateBatteryService = async (
   );
 };
 
-// POST /api/batteries/:id/issue: store/charging -> on a bus
+// POST /api/batteries/:id/issue: assign a battery to a bus.
+// Bus assignment is tracked independently of status now, so issuing
+// records which bus the pack is on without changing its state.
 export const issueBatteryService = async (
   id: string,
   payload: IIssueBattery,
@@ -188,18 +197,19 @@ export const issueBatteryService = async (
   if (!battery.isActive) {
     throw new ApiError(400, `${battery.code} is retired`);
   }
-  if (battery.status !== "in_store" && battery.status !== "charging") {
+  if (battery.bus) {
     throw new ApiError(
       400,
-      `${battery.code} is ${STATUS_LABEL[battery.status]} and cannot be issued`,
+      `${battery.code} is already on ${battery.busNumber}`,
     );
+  }
+  if (battery.status === "faulty") {
+    throw new ApiError(400, `${battery.code} is faulty and cannot be issued`);
   }
 
   const bus = await Bus.findById(payload.busId);
   if (!bus) throw new ApiError(404, "Bus not found");
 
-  const fromStatus = battery.status;
-  battery.status = "on_bus";
   battery.bus = bus._id as any;
   battery.busNumber = bus.number;
   await battery.save();
@@ -208,8 +218,8 @@ export const issueBatteryService = async (
     battery: battery._id,
     batteryCode: battery.code,
     action: "issue",
-    fromStatus,
-    toStatus: "on_bus",
+    fromStatus: battery.status,
+    toStatus: battery.status,
     bus: bus._id,
     busNumber: bus.number,
     note: payload.note || "",
@@ -223,7 +233,8 @@ export const issueBatteryService = async (
   );
 };
 
-// POST /api/batteries/:id/collect: off a bus -> store/charging/faulty
+// POST /api/batteries/:id/collect: take a battery off its bus.
+// Clears the bus only; the pack keeps its status until someone updates it.
 export const collectBatteryService = async (
   id: string,
   payload: ICollectBattery,
@@ -231,17 +242,13 @@ export const collectBatteryService = async (
 ) => {
   const battery = await Battery.findById(id);
   if (!battery) throw new ApiError(404, "Battery not found");
-  if (battery.status !== "on_bus") {
-    throw new ApiError(
-      400,
-      `${battery.code} is ${STATUS_LABEL[battery.status]}, not on a bus`,
-    );
+  if (!battery.bus) {
+    throw new ApiError(400, `${battery.code} is not on a bus`);
   }
 
   const fromBus = battery.bus;
   const fromBusNumber = battery.busNumber;
 
-  battery.status = payload.to;
   battery.bus = undefined;
   battery.busNumber = undefined;
   await battery.save();
@@ -250,8 +257,8 @@ export const collectBatteryService = async (
     battery: battery._id,
     batteryCode: battery.code,
     action: "collect",
-    fromStatus: "on_bus",
-    toStatus: payload.to,
+    fromStatus: battery.status,
+    toStatus: battery.status,
     bus: fromBus,
     busNumber: fromBusNumber,
     note: payload.note || "",
@@ -265,7 +272,7 @@ export const collectBatteryService = async (
   );
 };
 
-// POST /api/batteries/:id/status: moves between off-bus states
+// POST /api/batteries/:id/status: set the pack's state
 export const setBatteryStatusService = async (
   id: string,
   payload: ISetBatteryStatus,
@@ -273,12 +280,6 @@ export const setBatteryStatusService = async (
 ) => {
   const battery = await Battery.findById(id);
   if (!battery) throw new ApiError(404, "Battery not found");
-  if (battery.status === "on_bus") {
-    throw new ApiError(
-      400,
-      `${battery.code} is on ${battery.busNumber}; collect it first`,
-    );
-  }
   if (battery.status === payload.to) {
     throw new ApiError(
       400,

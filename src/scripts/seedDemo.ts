@@ -89,13 +89,13 @@ const ITEMS: {
 
 const BATTERIES: {
   code: string;
-  status: "in_store" | "charging" | "faulty";
+  status: "active" | "charging" | "fully_charged" | "not_charged" | "faulty";
 }[] = [
-  { code: "BAT-001", status: "in_store" },
-  { code: "BAT-002", status: "in_store" },
+  { code: "BAT-001", status: "active" },
+  { code: "BAT-002", status: "fully_charged" },
   { code: "BAT-003", status: "charging" },
   { code: "BAT-004", status: "charging" },
-  { code: "BAT-005", status: "in_store" },
+  { code: "BAT-005", status: "not_charged" },
   { code: "BAT-006", status: "faulty" },
 ];
 

@@ -4,7 +4,7 @@ import { BatteryStatus, BatteryMoveAction } from "./helper.interface";
 export interface IBattery extends Document {
   code: string; // physical label on the pack, unique
   status: BatteryStatus;
-  bus?: Types.ObjectId; // set only while on_bus
+  bus?: Types.ObjectId; // set while assigned to a bus (independent of status)
   busNumber?: string; // snapshot
   notes: string;
   isActive: boolean; // false = retired/written off
@@ -29,7 +29,7 @@ export interface IBatteryMovement extends Document {
 
 export interface ICreateBattery {
   code: string;
-  status?: Exclude<BatteryStatus, "on_bus">; // registering straight onto a bus is not allowed
+  status?: BatteryStatus;
   notes?: string;
 }
 
@@ -45,12 +45,11 @@ export interface IIssueBattery {
 }
 
 export interface ICollectBattery {
-  to: Exclude<BatteryStatus, "on_bus" | "in_repair">; // in_store | charging | faulty
-  note?: string;
+  note?: string; // collecting only clears the bus; status is managed separately
 }
 
 export interface ISetBatteryStatus {
-  to: Exclude<BatteryStatus, "on_bus">; // on/off a bus goes through issue/collect
+  to: BatteryStatus;
   note?: string;
 }
 

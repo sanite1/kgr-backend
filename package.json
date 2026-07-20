@@ -15,6 +15,7 @@
     "seed:demo": "ts-node src/scripts/seedDemo.ts",
     "seed:conversions": "ts-node src/scripts/seedConversions.ts",
     "cleanup:payments": "ts-node src/scripts/cleanupPayments.ts",
+    "migrate:batteries": "ts-node src/scripts/migrateBatteryStatus.ts",
     "prepare": "husky install"
   },
   "dependencies": {

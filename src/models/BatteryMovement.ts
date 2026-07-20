@@ -1,7 +1,14 @@
 import { Schema, model } from "mongoose";
 import { IBatteryMovement } from "../interfaces/battery.interface";
 
-const STATUSES = ["in_store", "charging", "on_bus", "faulty", "in_repair"];
+const STATUSES = [
+  "active",
+  "faulty",
+  "charging",
+  "fully_charged",
+  "not_charged",
+  "not_in_use",
+];
 
 const batteryMovementSchema = new Schema<IBatteryMovement>(
   {

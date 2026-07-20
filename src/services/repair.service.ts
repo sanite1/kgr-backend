@@ -104,14 +104,21 @@ export const createRepairJobService = async (
   if (payload.batteryId) {
     battery = await Battery.findById(payload.batteryId);
     if (!battery) throw new ApiError(404, "Battery not found");
-    if (battery.status === "on_bus") {
+    if (battery.bus) {
       throw new ApiError(
         400,
         `${battery.code} is on ${battery.busNumber}; collect it before opening a repair`,
       );
     }
-    if (battery.status === "in_repair") {
-      throw new ApiError(400, `${battery.code} is already in repair`);
+    const openJob = await RepairJob.findOne({
+      battery: battery._id,
+      status: "open",
+    });
+    if (openJob) {
+      throw new ApiError(
+        400,
+        `${battery.code} already has an open repair (#${openJob.jobId})`,
+      );
     }
   }
 
@@ -164,16 +171,17 @@ export const createRepairJobService = async (
     alertIfLowStock(item, previousQuantity);
   }
 
-  if (battery) {
+  // a pack under repair is marked faulty until the job closes
+  if (battery && battery.status !== "faulty") {
     const fromStatus = battery.status;
-    battery.status = "in_repair";
+    battery.status = "faulty";
     await battery.save();
     await BatteryMovement.create({
       battery: battery._id,
       batteryCode: battery.code,
       action: "status",
       fromStatus,
-      toStatus: "in_repair",
+      toStatus: "faulty",
       note: `Repair #${jobId} opened`,
       by: openedBy,
     });
@@ -296,18 +304,19 @@ export const completeRepairJobService = async (
 
   notifyOpener(job, by);
 
-  // a repaired battery goes back on the shelf
+  // a repaired battery is back in service
   if (job.battery) {
     const battery = await Battery.findById(job.battery);
-    if (battery && battery.status === "in_repair") {
-      battery.status = "in_store";
+    if (battery && battery.status !== "active") {
+      const fromStatus = battery.status;
+      battery.status = "active";
       await battery.save();
       await BatteryMovement.create({
         battery: battery._id,
         batteryCode: battery.code,
         action: "status",
-        fromStatus: "in_repair",
-        toStatus: "in_store",
+        fromStatus,
+        toStatus: "active",
         note: `Repair #${job.jobId} completed`,
         by,
       });
@@ -358,14 +367,15 @@ export const cancelRepairJobService = async (
   // the fault was not fixed: the battery stays faulty, not "repaired"
   if (job.battery) {
     const battery = await Battery.findById(job.battery);
-    if (battery && battery.status === "in_repair") {
+    if (battery && battery.status !== "faulty") {
+      const fromStatus = battery.status;
       battery.status = "faulty";
       await battery.save();
       await BatteryMovement.create({
         battery: battery._id,
         batteryCode: battery.code,
         action: "status",
-        fromStatus: "in_repair",
+        fromStatus,
         toStatus: "faulty",
         note: `Repair #${job.jobId} cancelled`,
         by,

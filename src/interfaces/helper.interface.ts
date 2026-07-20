@@ -16,7 +16,12 @@ export type StockMovementType = "in" | "out" | "adjust";
 export type RequestStatus = "pending" | "approved" | "declined";
 
 export type BatteryStatus =
-  "in_store" | "charging" | "on_bus" | "faulty" | "in_repair";
+  | "active"
+  | "faulty"
+  | "charging"
+  | "fully_charged"
+  | "not_charged"
+  | "not_in_use";
 
 export type BatteryMoveAction = "issue" | "collect" | "status";
 

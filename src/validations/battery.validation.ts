@@ -4,14 +4,21 @@ const idParam = Joi.object({
   id: Joi.string().hex().length(24).required(),
 });
 
-const OFF_BUS = ["in_store", "charging", "faulty", "in_repair"];
+const STATUSES = [
+  "active",
+  "faulty",
+  "charging",
+  "fully_charged",
+  "not_charged",
+  "not_in_use",
+];
 
 export const createBatteryValidation = () =>
   validate(
     {
       body: Joi.object({
         code: Joi.string().min(2).max(30).required(),
-        status: Joi.string().valid("in_store", "charging", "faulty"),
+        status: Joi.string().valid(...STATUSES),
         notes: Joi.string().max(1000).allow(""),
       }),
     },
@@ -51,7 +58,6 @@ export const collectBatteryValidation = () =>
     {
       params: idParam,
       body: Joi.object({
-        to: Joi.string().valid("in_store", "charging", "faulty").required(),
         note: Joi.string().max(500).allow(""),
       }),
     },
@@ -65,7 +71,7 @@ export const setBatteryStatusValidation = () =>
       params: idParam,
       body: Joi.object({
         to: Joi.string()
-          .valid(...OFF_BUS)
+          .valid(...STATUSES)
           .required(),
         note: Joi.string().max(500).allow(""),
       }),
@@ -80,13 +86,7 @@ export const listBatteriesValidation = () =>
       query: Joi.object({
         page: Joi.number().integer().min(1),
         pageSize: Joi.number().integer().min(1).max(100),
-        status: Joi.string().valid(
-          "in_store",
-          "charging",
-          "on_bus",
-          "faulty",
-          "in_repair",
-        ),
+        status: Joi.string().valid(...STATUSES),
         busId: Joi.string().hex().length(24),
         isActive: Joi.string().valid("true", "false"),
         search: Joi.string().max(100).allow(""),

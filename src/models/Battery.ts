@@ -13,8 +13,15 @@ const batterySchema = new Schema<IBattery>(
     },
     status: {
       type: String,
-      enum: ["in_store", "charging", "on_bus", "faulty", "in_repair"],
-      default: "in_store",
+      enum: [
+        "active",
+        "faulty",
+        "charging",
+        "fully_charged",
+        "not_charged",
+        "not_in_use",
+      ],
+      default: "active",
       index: true,
     },
     bus: { type: Schema.Types.ObjectId, ref: "Bus", index: true },
