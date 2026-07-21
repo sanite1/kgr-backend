@@ -4,6 +4,8 @@ import ApiError from "../errors/apiError";
 import Battery from "../models/Battery";
 import BatteryMovement from "../models/BatteryMovement";
 import Bus from "../models/Bus";
+import Receipt from "../models/Receipt";
+import { dayString } from "../helpers/day";
 import {
   ICreateBattery,
   IUpdateBattery,
@@ -97,14 +99,21 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
 
 // GET /api/batteries/summary: counts per status for the board header
 export const getBatterySummaryService = async () => {
-  const [rows, onBus] = await Promise.all([
+  const [rows, receiptBatteries] = await Promise.all([
     Battery.aggregate([
       { $match: { isActive: true } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
-    // bus assignment is tracked independently of status now
-    Battery.countDocuments({ isActive: true, bus: { $ne: null } }),
+    // "on buses" comes from today's receipts: generating a receipt names
+    // the battery that went out with the bus, so distinct names on the
+    // day's live receipts ARE the packs on the road right now
+    Receipt.distinct("batteryName", {
+      date: dayString(),
+      status: { $ne: "void" },
+      batteryName: { $nin: ["", null] },
+    }),
   ]);
+  const onBus = receiptBatteries.length;
 
   const counts: Record<string, number> = {
     active: 0,
