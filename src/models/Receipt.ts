@@ -52,6 +52,8 @@ const receiptSchema = new Schema<IReceipt>(
 receiptSchema.index({ date: 1, status: 1 });
 receiptSchema.index({ bus: 1, date: 1 });
 receiptSchema.index({ createdAt: -1 });
+// backs the default newest-first list ordering
+receiptSchema.index({ date: -1, createdAt: -1, billId: -1 });
 
 const Receipt = model<IReceipt>("Receipt", receiptSchema);
 export default Receipt;

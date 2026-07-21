@@ -113,8 +113,12 @@ export const getReceiptsService = async (query: IReceiptsQuery) => {
     filter.$or = or;
   }
 
+  // newest first: latest business day, then latest issue within the day,
+  // billId as a stable tiebreaker for same-moment rows (seeds, imports)
   const sort: Record<string, 1 | -1> =
-    query.sort === "oldest" ? { date: 1, createdAt: 1 } : { createdAt: -1 };
+    query.sort === "oldest"
+      ? { date: 1, createdAt: 1, billId: 1 }
+      : { date: -1, createdAt: -1, billId: -1 };
 
   const [receipts, totalItems] = await Promise.all([
     Receipt.find(filter)
