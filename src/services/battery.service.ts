@@ -149,6 +149,11 @@ export const updateBatteryService = async (
     battery.code = code;
   }
   if (payload.notes !== undefined) battery.notes = payload.notes;
+  if (payload.location !== undefined && payload.location !== battery.location) {
+    changes.push(`Moved to ${payload.location.replace(/_/g, " ")}`);
+    battery.location = payload.location;
+  }
+  if (payload.needsCheck !== undefined) battery.needsCheck = payload.needsCheck;
   if (payload.isActive !== undefined) {
     if (payload.isActive === false && battery.bus) {
       throw new ApiError(
@@ -162,6 +167,11 @@ export const updateBatteryService = async (
       );
     }
     battery.isActive = payload.isActive;
+    // a reactivated pack is back in the fleet with no retire reason
+    if (payload.isActive === true) battery.retiredReason = undefined;
+  }
+  if (payload.retiredReason !== undefined && battery.isActive === false) {
+    battery.retiredReason = payload.retiredReason;
   }
 
   await battery.save();

@@ -24,10 +24,21 @@ const batterySchema = new Schema<IBattery>(
       default: "active",
       index: true,
     },
+    location: {
+      type: String,
+      enum: ["main_yard", "muhd_house", "kamila_house", "ubs"],
+      default: "main_yard",
+      index: true,
+    },
+    needsCheck: { type: Boolean, default: false, index: true },
     bus: { type: Schema.Types.ObjectId, ref: "Bus", index: true },
     busNumber: { type: String },
     notes: { type: String, default: "" },
     isActive: { type: Boolean, default: true, index: true },
+    retiredReason: {
+      type: String,
+      enum: ["sold", "dismantled", "accident", "bms_burnt", "other"],
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   {

@@ -1,4 +1,5 @@
 import { Joi, validate } from "express-validation";
+import { BATTERY_LOCATION_VALUES } from "../config/batteryLocations";
 
 const idParam = Joi.object({
   id: Joi.string().hex().length(24).required(),
@@ -13,12 +14,21 @@ const STATUSES = [
   "not_in_use",
 ];
 
+const RETIRED_REASONS = [
+  "sold",
+  "dismantled",
+  "accident",
+  "bms_burnt",
+  "other",
+];
+
 export const createBatteryValidation = () =>
   validate(
     {
       body: Joi.object({
         code: Joi.string().min(2).max(30).required(),
         status: Joi.string().valid(...STATUSES),
+        location: Joi.string().valid(...BATTERY_LOCATION_VALUES),
         notes: Joi.string().max(1000).allow(""),
       }),
     },
@@ -33,7 +43,10 @@ export const updateBatteryValidation = () =>
       body: Joi.object({
         code: Joi.string().min(2).max(30),
         notes: Joi.string().max(1000).allow(""),
+        location: Joi.string().valid(...BATTERY_LOCATION_VALUES),
+        needsCheck: Joi.boolean(),
         isActive: Joi.boolean(),
+        retiredReason: Joi.string().valid(...RETIRED_REASONS),
       }).min(1),
     },
     { context: true },

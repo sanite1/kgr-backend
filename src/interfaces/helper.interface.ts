@@ -25,6 +25,19 @@ export type BatteryStatus =
 
 export type BatteryMoveAction = "issue" | "collect" | "status";
 
+// where a pack physically lives; kept as a small managed list
+export type BatteryLocation =
+  "main_yard" | "muhd_house" | "kamila_house" | "ubs";
+
+// why a pack was taken out of the fleet (set when isActive is false)
+export type BatteryRetiredReason =
+  "sold" | "dismantled" | "accident" | "bms_burnt" | "other";
+
+// the CHECK column on the battery exit form: the audit's own vocabulary,
+// each value maps onto the fleet's status/needsCheck/isActive on save
+export type ExitCheck =
+  "active" | "faulty" | "needs_check" | "out_of_use" | "sold" | "bms";
+
 export type RepairStatus = "open" | "completed" | "cancelled";
 
 export type ConversionStatus = "new" | "in_review" | "contacted" | "closed";
