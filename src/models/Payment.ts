@@ -19,6 +19,7 @@ const paymentSchema = new Schema<IPayment>(
     },
     date: { type: String, required: true, index: true },
     receiptDate: { type: String, required: true },
+    reason: { type: String, default: "" },
   },
   {
     timestamps: true,

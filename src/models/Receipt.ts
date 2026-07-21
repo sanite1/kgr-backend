@@ -34,6 +34,9 @@ const receiptSchema = new Schema<IReceipt>(
     checkedInBy: { type: Schema.Types.ObjectId, ref: "User" },
     paidAt: { type: Date },
     paidBy: { type: Schema.Types.ObjectId, ref: "User" },
+    // what was actually collected; below expectedAmount = short payment
+    amountPaid: { type: String },
+    payReason: { type: String, default: "" },
     voidedAt: { type: Date },
     voidedBy: { type: Schema.Types.ObjectId, ref: "User" },
     voidReason: { type: String, default: "" },

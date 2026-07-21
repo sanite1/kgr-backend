@@ -7,6 +7,12 @@ export const payReceiptValidation = () =>
     {
       body: Joi.object({
         receiptId: Joi.string().hex().length(24).required(),
+        amount: Joi.string()
+          .pattern(/^\d+(\.\d{1,2})?$/)
+          .messages({
+            "string.pattern.base": "amount must be a plain figure like 5000",
+          }),
+        reason: Joi.string().max(500).allow(""),
       }),
     },
     { context: true },

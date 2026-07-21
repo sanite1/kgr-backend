@@ -365,7 +365,9 @@ export const getReceiptSummaryService = async (
             $sum: {
               $cond: [
                 { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
+                {
+                  $toDouble: { $ifNull: ["$amountPaid", "$expectedAmount"] },
+                },
                 0,
               ],
             },
@@ -412,7 +414,9 @@ export const getReceiptSummaryService = async (
             $sum: {
               $cond: [
                 { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
+                {
+                  $toDouble: { $ifNull: ["$amountPaid", "$expectedAmount"] },
+                },
                 0,
               ],
             },
@@ -430,7 +434,9 @@ export const getReceiptSummaryService = async (
             $sum: {
               $cond: [
                 { $eq: ["$status", "paid"] },
-                { $toDouble: "$expectedAmount" },
+                {
+                  $toDouble: { $ifNull: ["$amountPaid", "$expectedAmount"] },
+                },
                 0,
               ],
             },

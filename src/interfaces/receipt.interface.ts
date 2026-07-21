@@ -21,6 +21,8 @@ export interface IReceipt extends Document {
   checkedInBy?: Types.ObjectId;
   paidAt?: Date;
   paidBy?: Types.ObjectId;
+  amountPaid?: string; // below expectedAmount = short payment
+  payReason?: string;
   voidedAt?: Date;
   voidedBy?: Types.ObjectId;
   voidReason?: string;

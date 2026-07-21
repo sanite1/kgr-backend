@@ -7,12 +7,15 @@ export interface IPayment extends Document {
   collectedBy: Types.ObjectId;
   date: string; // Lagos day the cash was collected
   receiptDate: string; // the receipt's own day; differs when arrears are paid
+  reason: string; // why the amount differs from the expected amount
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export interface IPayReceiptRequest {
   receiptId: string;
+  amount?: string; // omitted = pay in full
+  reason?: string; // required when amount is below the expected amount
 }
 
 export interface IPaymentsQuery {

@@ -14,7 +14,9 @@ import {
   IExportPaymentsQuery,
 } from "../interfaces/payment.interface";
 
-// POST /api/payments: collect full payment for a receipt
+// POST /api/payments: collect payment for a receipt. Full amount by
+// default; a lower amount is a short payment and must carry a reason,
+// which stays on both the payment and the receipt for management.
 export const payReceiptService = async (
   payload: IPayReceiptRequest,
   collectedBy: string,
@@ -28,13 +30,41 @@ export const payReceiptService = async (
     throw new ApiError(400, `Receipt #${receipt.billId} is already paid`);
   }
 
+  const expected = Number(receipt.expectedAmount);
+  const amount = payload.amount ?? receipt.expectedAmount;
+  const amountNum = Number(amount);
+  const reason = (payload.reason || "").trim();
+
+  if (!(amountNum > 0)) {
+    throw new ApiError(400, "The amount must be more than zero");
+  }
+  if (amountNum > expected) {
+    throw new ApiError(
+      400,
+      `Receipt #${receipt.billId} expects ${receipt.expectedAmount}; collect at most that`,
+    );
+  }
+  const isShort = amountNum < expected;
+  if (isShort && reason.length < 3) {
+    throw new ApiError(
+      400,
+      "A reason is required when collecting less than the expected amount",
+    );
+  }
+
   // Atomically claim the receipt: the status guard means only ONE request
   // can flip awaiting -> paid, so a retried or concurrent pay can never
   // create a second payment. findOneAndUpdate also skips whole-document
   // validation, so older receipts save cleanly.
   const claimed = await Receipt.findOneAndUpdate(
     { _id: receipt._id, status: "awaiting_payment" },
-    { status: "paid", paidAt: new Date(), paidBy: collectedBy },
+    {
+      status: "paid",
+      paidAt: new Date(),
+      paidBy: collectedBy,
+      amountPaid: amount,
+      payReason: isShort ? reason : "",
+    },
     { new: true },
   );
   if (!claimed) {
@@ -45,17 +75,21 @@ export const payReceiptService = async (
   try {
     payment = await Payment.create({
       receipt: claimed._id,
-      amount: claimed.expectedAmount,
+      amount,
       method: "cash",
       collectedBy,
       date: dayString(),
       receiptDate: claimed.date,
+      reason: isShort ? reason : "",
     });
   } catch (err) {
     // release the claim so the receipt can be paid again
     await Receipt.updateOne(
       { _id: claimed._id },
-      { status: "awaiting_payment", $unset: { paidAt: "", paidBy: "" } },
+      {
+        status: "awaiting_payment",
+        $unset: { paidAt: "", paidBy: "", amountPaid: "", payReason: "" },
+      },
     );
     throw err;
   }
@@ -241,6 +275,7 @@ export const exportPaymentsCsvService = async (
       "Bus",
       "Receipt Date",
       "Amount",
+      "Reason",
       "Collected By",
       "Collected At",
     ].join(","),
@@ -257,6 +292,7 @@ export const exportPaymentsCsvService = async (
         escape(String(receipt?.busNumber ?? "")),
         escape(String(p.receiptDate)),
         escape(String(p.amount)),
+        escape(String(p.reason || "")),
         escape(
           collector?.firstName
             ? `${collector.firstName} ${collector.lastName}`
@@ -266,7 +302,7 @@ export const exportPaymentsCsvService = async (
       ].join(","),
     );
   }
-  rows.push(["", "", "", "TOTAL", escape(String(total)), "", ""].join(","));
+  rows.push(["", "", "", "TOTAL", escape(String(total)), "", "", ""].join(","));
 
   return { filename: `kgr-collections-${date}.csv`, csv: rows.join("\n") };
 };
