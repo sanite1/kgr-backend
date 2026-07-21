@@ -136,6 +136,61 @@ export const getBatterySummaryService = async () => {
   });
 };
 
+// GET /api/batteries/idle: packs with no receipt for 48h+ (managers).
+// A battery "works" when a non-void receipt names it, so consecutive idle
+// time is simply the gap since the last receipt that carried its code.
+export const getIdleBatteriesService = async () => {
+  const THRESHOLD_DAYS = 2; // 48 hours in business days
+
+  const [batteries, lastWorkedRows] = await Promise.all([
+    Battery.find({ isActive: true }).sort({ code: 1 }),
+    Receipt.aggregate([
+      {
+        $match: {
+          status: { $ne: "void" },
+          batteryName: { $nin: ["", null] },
+        },
+      },
+      { $group: { _id: "$batteryName", lastDate: { $max: "$date" } } },
+    ]),
+  ]);
+
+  const lastByCode = new Map<string, string>(
+    lastWorkedRows.map((r: any) => [r._id, r.lastDate]),
+  );
+  const todayMs = Date.parse(`${dayString()}T00:00:00Z`);
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  const idle: Record<string, any>[] = [];
+  for (const battery of batteries) {
+    const lastWorkedDate = lastByCode.get(battery.code) ?? null;
+    // a pack that never worked has been idle since it was registered
+    const sinceMs = lastWorkedDate
+      ? Date.parse(`${lastWorkedDate}T00:00:00Z`)
+      : (battery.createdAt?.getTime() ?? todayMs);
+    const idleDays = Math.floor((todayMs - sinceMs) / dayMs);
+    if (idleDays >= THRESHOLD_DAYS) {
+      idle.push({
+        _id: battery._id,
+        code: battery.code,
+        status: battery.status,
+        location: battery.location,
+        needsCheck: battery.needsCheck,
+        lastWorkedDate,
+        idleDays,
+      });
+    }
+  }
+
+  idle.sort((a, b) => b.idleDays - a.idleDays);
+
+  return new ApiResponse(200, "Idle batteries retrieved successfully", {
+    batteries: idle,
+    count: idle.length,
+    thresholdHours: 48,
+  });
+};
+
 // PATCH /api/batteries/:id (admin)
 export const updateBatteryService = async (
   id: string,

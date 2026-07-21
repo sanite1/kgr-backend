@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
-import { STORE } from "../config/roles";
+import { MANAGERS, STORE } from "../config/roles";
 import {
   createBatteryValidation,
   updateBatteryValidation,
@@ -15,6 +15,7 @@ import {
   createBattery,
   getBatteries,
   getBatterySummary,
+  getIdleBatteries,
   updateBattery,
   issueBattery,
   collectBattery,
@@ -28,6 +29,8 @@ router.use(isAuthenticated);
 
 // static paths before param paths
 router.get("/summary", getBatterySummary);
+// which packs have sat unused 48h+: management's view
+router.get("/idle", authorizeRoles(...MANAGERS), getIdleBatteries);
 router.get("/", listBatteriesValidation(), getBatteries);
 // registering/editing the fleet of packs is store work
 router.post(

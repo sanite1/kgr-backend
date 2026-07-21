@@ -4,6 +4,7 @@ import {
   createBatteryService,
   getBatteriesService,
   getBatterySummaryService,
+  getIdleBatteriesService,
   updateBatteryService,
   issueBatteryService,
   collectBatteryService,
@@ -56,6 +57,19 @@ export const getBatterySummary = async (
 ) => {
   try {
     const result = await getBatterySummaryService();
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getIdleBatteries = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getIdleBatteriesService();
     sendResponse(res, result);
   } catch (error) {
     next(error);
