@@ -15,6 +15,7 @@ export const ACCESS_MODULES = [
   { key: "batteries", label: "Batteries" },
   { key: "battery_form", label: "Battery Form" },
   { key: "battery_closing", label: "Battery Closing" },
+  { key: "swaps", label: "Battery Swaps" },
   { key: "repairs", label: "Repairs" },
   { key: "buses", label: "Buses" },
   { key: "tracker_report", label: "Tracker Report" },
@@ -33,6 +34,7 @@ const EVERYONE: ModuleKey[] = [
   "requests",
   "battery_form",
   "battery_closing",
+  "swaps",
   "buses",
   "tracker_report",
 ];
