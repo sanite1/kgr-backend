@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS, STORE } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   createBatteryValidation,
   updateBatteryValidation,
@@ -36,12 +37,14 @@ router.get("/", listBatteriesValidation(), getBatteries);
 router.post(
   "/",
   authorizeRoles(...STORE),
+  requireAccess("batteries"),
   createBatteryValidation(),
   createBattery,
 );
 router.patch(
   "/:id",
   authorizeRoles(...STORE),
+  requireAccess("batteries"),
   updateBatteryValidation(),
   updateBattery,
 );
@@ -61,6 +64,7 @@ router.post(
 router.post(
   "/:id/status",
   authorizeRoles(...STORE),
+  requireAccess("batteries"),
   setBatteryStatusValidation(),
   setBatteryStatus,
 );

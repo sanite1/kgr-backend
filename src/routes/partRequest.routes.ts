@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   createPartRequestValidation,
   decideRequestValidation,
@@ -18,7 +19,7 @@ import {
 
 const router = Router();
 
-router.use(isAuthenticated);
+router.use(isAuthenticated, requireAccess("requests"));
 
 // static paths before param paths
 router.get(

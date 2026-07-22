@@ -22,6 +22,8 @@ const userSchema = new Schema<IUser>(
       index: true,
     },
     isActive: { type: Boolean, default: true, index: true },
+    // per-user module overrides; unset = the role's default access
+    access: { type: [String], default: undefined },
     lastLoginAt: { type: Date },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },

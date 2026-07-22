@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   monthlyReportValidation,
   expenseReportValidation,
@@ -14,7 +15,11 @@ import {
 const router = Router();
 
 // whole-business money views: managers and admin
-router.use(isAuthenticated, authorizeRoles(...MANAGERS));
+router.use(
+  isAuthenticated,
+  authorizeRoles(...MANAGERS),
+  requireAccess("reports"),
+);
 
 router.get("/monthly", monthlyReportValidation(), getMonthlyReport);
 router.get("/expenses", expenseReportValidation(), getExpenseReport);

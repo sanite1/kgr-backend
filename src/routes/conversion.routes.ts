@@ -3,6 +3,7 @@ import { strictRateLimiter } from "../middlewares/rateLimiter";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   submitConversionValidation,
   updateConversionStatusValidation,
@@ -36,6 +37,7 @@ router.get(
   "/",
   isAuthenticated,
   authorizeRoles(...MANAGERS),
+  requireAccess("conversions"),
   listConversionsValidation(),
   getConversions,
 );
@@ -43,6 +45,7 @@ router.patch(
   "/:id/status",
   isAuthenticated,
   authorizeRoles(...MANAGERS),
+  requireAccess("conversions"),
   updateConversionStatusValidation(),
   updateConversionStatus,
 );

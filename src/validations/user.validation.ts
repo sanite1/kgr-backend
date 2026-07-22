@@ -1,4 +1,5 @@
 import { Joi, validate } from "express-validation";
+import { MODULE_KEYS } from "../config/access";
 
 export const createUserValidation = () =>
   validate(
@@ -8,6 +9,7 @@ export const createUserValidation = () =>
         lastName: Joi.string().min(2).max(100).required(),
         email: Joi.string().email().required(),
         password: Joi.string().min(8).max(128).required(),
+        access: Joi.array().items(Joi.string().valid(...MODULE_KEYS)),
         role: Joi.string().valid(
           "staff",
           "cashier",
@@ -38,6 +40,9 @@ export const updateUserValidation = () =>
           "admin",
         ),
         isActive: Joi.boolean(),
+        access: Joi.array()
+          .items(Joi.string().valid(...MODULE_KEYS))
+          .allow(null),
       }).min(1),
     },
     { context: true },

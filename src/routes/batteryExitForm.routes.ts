@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   createExitFormValidation,
   listExitFormsValidation,
@@ -18,8 +19,13 @@ const router = Router();
 router.use(isAuthenticated);
 
 // running the roll-call is staff work: any signed-in user may do it
-router.get("/roster", getFleetRoster);
-router.post("/", createExitFormValidation(), createExitForm);
+router.get("/roster", requireAccess("battery_form"), getFleetRoster);
+router.post(
+  "/",
+  requireAccess("battery_form"),
+  createExitFormValidation(),
+  createExitForm,
+);
 
 // the submitted records and their per-pack detail are admin-only
 router.get(

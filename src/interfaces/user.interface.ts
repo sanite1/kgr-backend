@@ -8,6 +8,8 @@ export interface IUser extends Document {
   password: string;
   role: UserRole;
   isActive: boolean;
+  // per-user module overrides; absent = the role's default access
+  access?: string[];
   lastLoginAt?: Date;
   createdBy?: Types.ObjectId; // absent on the seeded admin
   updatedBy?: Types.ObjectId; // last admin to edit the account
@@ -37,6 +39,7 @@ export interface ICreateUserRequest {
   email: string;
   password: string;
   role?: UserRole;
+  access?: string[]; // per-user module overrides; absent = role defaults
 }
 
 export interface IUpdateUserRequest {
@@ -44,6 +47,7 @@ export interface IUpdateUserRequest {
   lastName?: string;
   role?: UserRole;
   isActive?: boolean;
+  access?: string[] | null; // null resets to role defaults
 }
 
 export interface IUsersQuery {

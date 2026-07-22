@@ -39,6 +39,7 @@ export const createUserService = async (
     email: payload.email,
     password: await bcrypt.hash(payload.password, 10),
     role: payload.role || "staff",
+    access: payload.role === "admin" ? undefined : payload.access,
     createdBy,
   });
 
@@ -118,6 +119,14 @@ export const updateUserService = async (
   if (payload.lastName !== undefined) user.lastName = payload.lastName;
   if (payload.role !== undefined) user.role = payload.role;
   if (payload.isActive !== undefined) user.isActive = payload.isActive;
+  if (payload.access !== undefined) {
+    // null clears the override so the role defaults apply again;
+    // admins never carry overrides, their access is always everything
+    user.access =
+      payload.access === null || user.role === "admin"
+        ? undefined
+        : payload.access;
+  }
   user.updatedBy = actingUserId as any;
   await user.save();
 

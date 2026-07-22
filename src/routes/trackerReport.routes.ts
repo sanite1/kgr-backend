@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   parseTrackerValidation,
   createTrackerReportValidation,
@@ -22,8 +23,18 @@ const router = Router();
 router.use(isAuthenticated);
 
 // keying in the day's report is staff work
-router.post("/parse", parseTrackerValidation(), parseTrackerText);
-router.post("/", createTrackerReportValidation(), createTrackerReport);
+router.post(
+  "/parse",
+  requireAccess("tracker_report"),
+  parseTrackerValidation(),
+  parseTrackerText,
+);
+router.post(
+  "/",
+  requireAccess("tracker_report"),
+  createTrackerReportValidation(),
+  createTrackerReport,
+);
 
 // history, detail and mileage analytics: management
 router.get(

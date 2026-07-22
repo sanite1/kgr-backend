@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS, STORE } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   createRepairJobValidation,
   addRepairPartValidation,
@@ -19,7 +20,7 @@ import {
 
 const router = Router();
 
-router.use(isAuthenticated);
+router.use(isAuthenticated, requireAccess("repairs"));
 
 router.get("/", listRepairJobsValidation(), getRepairJobs);
 router.post(

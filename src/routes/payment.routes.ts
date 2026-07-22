@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
 import { MANAGERS, FRONT_DESK } from "../config/roles";
+import { requireAccess } from "../middlewares/requireAccess";
 import {
   payReceiptValidation,
   listPaymentsValidation,
@@ -24,12 +25,14 @@ router.use(isAuthenticated);
 router.get(
   "/daily-account",
   authorizeRoles(...MANAGERS),
+  requireAccess("daily_account"),
   dailyAccountValidation(),
   getDailyAccount,
 );
 router.get(
   "/export",
   authorizeRoles(...FRONT_DESK),
+  requireAccess("paypoint", "daily_account"),
   exportPaymentsValidation(),
   exportPayments,
 );
@@ -37,6 +40,7 @@ router.get("/", listPaymentsValidation(), getPayments);
 router.post(
   "/",
   authorizeRoles(...FRONT_DESK),
+  requireAccess("paypoint", "nyp"),
   payReceiptValidation(),
   payReceipt,
 );
