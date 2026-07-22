@@ -69,6 +69,7 @@ import repairRoutes from "./routes/repair.routes";
 import reportRoutes from "./routes/report.routes";
 import expenditureRoutes from "./routes/expenditure.routes";
 import conversionRoutes from "./routes/conversion.routes";
+import trackerReportRoutes from "./routes/trackerReport.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -155,6 +156,7 @@ app.use("/api/repairs", repairRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/expenditures", expenditureRoutes);
 app.use("/api/conversions", conversionRoutes);
+app.use("/api/tracker-reports", trackerReportRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

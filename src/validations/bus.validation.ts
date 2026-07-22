@@ -27,6 +27,8 @@ export const updateBusValidation = () =>
         driverName: Joi.string().max(200).allow(""),
         driverPhone: Joi.string().max(50).allow(""),
         isActive: Joi.boolean(),
+        hasTracker: Joi.boolean(),
+        trackerHealth: Joi.string().valid("ok", "no_power", "no_data"),
         notes: Joi.string().max(2000).allow(""),
       }).min(1),
     },

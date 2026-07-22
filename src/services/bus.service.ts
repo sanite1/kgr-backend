@@ -97,6 +97,10 @@ export const updateBusService = async (
   if (payload.driverName !== undefined) bus.driverName = payload.driverName;
   if (payload.driverPhone !== undefined) bus.driverPhone = payload.driverPhone;
   if (payload.isActive !== undefined) bus.isActive = payload.isActive;
+  if (payload.hasTracker !== undefined) bus.hasTracker = payload.hasTracker;
+  if (payload.trackerHealth !== undefined) {
+    bus.trackerHealth = payload.trackerHealth;
+  }
   if (payload.notes !== undefined) bus.notes = payload.notes;
   bus.updatedBy = updatedBy as any;
   await bus.save();

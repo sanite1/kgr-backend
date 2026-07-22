@@ -14,6 +14,12 @@ const busSchema = new Schema<IBus>(
     driverName: { type: String, default: "", trim: true },
     driverPhone: { type: String, default: "", trim: true },
     isActive: { type: Boolean, default: true, index: true },
+    hasTracker: { type: Boolean, default: true },
+    trackerHealth: {
+      type: String,
+      enum: ["ok", "no_power", "no_data"],
+      default: "ok",
+    },
     notes: { type: String, default: "" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
