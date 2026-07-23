@@ -17,6 +17,8 @@ const batteryClosingEntrySchema = new Schema<IBatteryClosingEntry>(
       enum: ["main_yard", "muhd_house", "kamila_house", "ubs"],
       required: true,
     },
+    trips: { type: Number, default: 0, min: 0 },
+    tripsAuto: { type: Boolean, default: false },
     addedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     addedByName: { type: String, default: "" },
   },

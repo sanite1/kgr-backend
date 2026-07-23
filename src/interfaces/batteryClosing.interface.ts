@@ -8,6 +8,8 @@ export interface IBatteryClosingEntry extends Document {
   percent: 50 | 75 | 100;
   voltage: string; // typed as read off the meter
   location: BatteryLocation;
+  trips: number; // trips this pack did today
+  tripsAuto: boolean; // true when derived from receipts and swaps
   addedBy: Types.ObjectId;
   addedByName: string; // snapshot
   createdAt?: Date;
@@ -19,6 +21,7 @@ export interface ICreateClosingEntry {
   percent: 50 | 75 | 100;
   voltage: string;
   location: BatteryLocation;
+  trips?: number; // omitted = derive from today's receipts and swaps
 }
 
 export interface IClosingEntriesQuery {

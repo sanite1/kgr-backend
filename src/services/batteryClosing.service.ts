@@ -2,6 +2,8 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
+import Receipt from "../models/Receipt";
+import BatterySwap from "../models/BatterySwap";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
 import { BATTERY_LOCATIONS } from "../config/batteryLocations";
@@ -10,6 +12,27 @@ import {
   IClosingEntriesQuery,
   IClosingDaysQuery,
 } from "../interfaces/batteryClosing.interface";
+
+// What the system already knows about a pack's day: receipts that named
+// it carry expectedTrips, and swaps credit tripsAdded to the pack that
+// was supplied. Used when the staff leave the trips field empty.
+const deriveTrips = async (
+  date: string,
+  batteryName: string,
+): Promise<number> => {
+  const [receiptAgg, swapAgg] = await Promise.all([
+    Receipt.aggregate([
+      { $match: { date, batteryName, status: { $ne: "void" } } },
+      { $group: { _id: null, trips: { $sum: "$expectedTrips" } } },
+    ]),
+    BatterySwap.aggregate([
+      { $match: { date, suppliedBatteryCode: batteryName } },
+      { $group: { _id: null, trips: { $sum: "$tripsAdded" } } },
+    ]),
+  ]);
+  const total = (receiptAgg[0]?.trips ?? 0) + (swapAgg[0]?.trips ?? 0);
+  return Math.round(total * 2) / 2;
+};
 
 // POST /api/battery-closing: add one battery to today's closing sheet
 export const createClosingEntryService = async (
@@ -28,6 +51,12 @@ export const createClosingEntryService = async (
     );
   }
 
+  // no trips typed = let the day's receipts and swaps answer for the pack
+  const tripsAuto = payload.trips === undefined;
+  const trips = tripsAuto
+    ? await deriveTrips(date, batteryName)
+    : payload.trips!;
+
   const user = await User.findById(addedById);
   const entry = await BatteryClosingEntry.create({
     date,
@@ -35,6 +64,8 @@ export const createClosingEntryService = async (
     percent: payload.percent,
     voltage: payload.voltage,
     location: payload.location,
+    trips,
+    tripsAuto,
     addedBy: addedById,
     addedByName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
   });
@@ -56,9 +87,11 @@ export const getClosingEntriesService = async (query: IClosingEntriesQuery) => {
   const byLocation: Record<string, number> = {};
   for (const loc of BATTERY_LOCATIONS) byLocation[loc.value] = 0;
   let fullyCharged = 0;
+  let totalTrips = 0;
   for (const e of entries) {
     byLocation[e.location] = (byLocation[e.location] || 0) + 1;
     if (e.percent === 100) fullyCharged += 1;
+    totalTrips += e.trips || 0;
   }
 
   return new ApiResponse(200, "Closing report retrieved successfully", {
@@ -67,6 +100,7 @@ export const getClosingEntriesService = async (query: IClosingEntriesQuery) => {
     totals: {
       count: entries.length,
       fullyCharged,
+      totalTrips: Math.round(totalTrips * 2) / 2,
       byLocation,
     },
   });
@@ -86,6 +120,7 @@ export const getClosingDaysService = async (query: IClosingDaysQuery) => {
           fullyCharged: {
             $sum: { $cond: [{ $eq: ["$percent", 100] }, 1, 0] },
           },
+          totalTrips: { $sum: { $ifNull: ["$trips", 0] } },
         },
       },
       { $sort: { _id: -1 } },
@@ -100,6 +135,7 @@ export const getClosingDaysService = async (query: IClosingDaysQuery) => {
       date: d._id,
       count: d.count,
       fullyCharged: d.fullyCharged,
+      totalTrips: Math.round((d.totalTrips ?? 0) * 2) / 2,
     })),
     totalRows.length,
     page,

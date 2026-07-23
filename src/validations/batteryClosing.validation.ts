@@ -16,6 +16,7 @@ export const createClosingEntryValidation = () =>
         location: Joi.string()
           .valid(...BATTERY_LOCATION_VALUES)
           .required(),
+        trips: Joi.number().min(0).max(100).multiple(0.5),
       }),
     },
     { context: true },
