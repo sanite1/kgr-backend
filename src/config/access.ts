@@ -23,6 +23,7 @@ export const ACCESS_MODULES = [
   { key: "reports", label: "Reports" },
   { key: "expenditures", label: "Expenditures" },
   { key: "conversions", label: "Conversions" },
+  { key: "partnerships", label: "Partnerships" },
   { key: "users", label: "Users" },
 ] as const;
 

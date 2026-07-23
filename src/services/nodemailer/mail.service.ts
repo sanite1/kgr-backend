@@ -314,3 +314,52 @@ export const sendLowStockMail = async (
     ctaUrl: `${CONSOLE_URL}/inventory`,
   });
 };
+
+// partnership / investor form (public website)
+export const sendPartnershipConfirmationMail = async (
+  senderEmail: string,
+  context: { name: string; requestId: number },
+) => {
+  await sendNoticeMail(
+    senderEmail,
+    `We've received your partnership form (#${context.requestId}): KGR Partners`,
+    {
+      title: "Thank you for your interest",
+      name: context.name,
+      intro:
+        `Your partner / investor information form (#${context.requestId}) has been received. ` +
+        "Our team will follow up to schedule an introductory call and begin our standard verification process.",
+    },
+  );
+};
+
+export const sendPartnershipNotificationMail = async (
+  notificationEmail: string,
+  context: {
+    requestId: number;
+    kind: string;
+    name: string;
+    email: string;
+    phone: string;
+    answered: number;
+    consoleUrl: string;
+  },
+) => {
+  await sendNoticeMail(
+    notificationEmail,
+    `New partnership form #${context.requestId} from ${context.name}`,
+    {
+      title: `Partnership form #${context.requestId}`,
+      intro: "A new partner / investor form arrived from the website.",
+      rows: [
+        { label: "Type", value: context.kind },
+        { label: "Name", value: context.name },
+        { label: "Email", value: context.email },
+        { label: "Phone", value: context.phone || "-" },
+        { label: "Answered fields", value: String(context.answered) },
+      ],
+      ctaLabel: "Open in the console",
+      ctaUrl: context.consoleUrl,
+    },
+  );
+};
