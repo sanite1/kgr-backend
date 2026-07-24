@@ -39,6 +39,8 @@ const batterySchema = new Schema<IBattery>(
       type: String,
       enum: ["sold", "dismantled", "accident", "bms_burnt", "other"],
     },
+    idleSnoozedUntil: { type: Date },
+    idleSnoozedByName: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   {

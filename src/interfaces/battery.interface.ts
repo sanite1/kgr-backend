@@ -16,6 +16,9 @@ export interface IBattery extends Document {
   notes: string;
   isActive: boolean; // false = retired/written off
   retiredReason?: BatteryRetiredReason; // why, when isActive is false
+  // idle-report snooze: hidden from the 48h warning until this passes
+  idleSnoozedUntil?: Date;
+  idleSnoozedByName?: string;
   createdBy: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;

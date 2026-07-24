@@ -121,3 +121,18 @@ export const batteryMovementsValidation = () =>
     { context: true },
     { abortEarly: false },
   );
+
+export const snoozeBatteryValidation = () =>
+  validate(
+    {
+      params: idParam,
+      body: Joi.object({
+        // 0 wakes the pack up immediately; up to a month otherwise
+        days: Joi.number().integer().min(0).max(31).required().messages({
+          "number.max": "snooze can be at most a month (31 days)",
+        }),
+      }),
+    },
+    { context: true },
+    { abortEarly: false },
+  );

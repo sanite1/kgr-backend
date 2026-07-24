@@ -10,6 +10,7 @@ import {
   collectBatteryValidation,
   setBatteryStatusValidation,
   listBatteriesValidation,
+  snoozeBatteryValidation,
   batteryMovementsValidation,
 } from "../validations/battery.validation";
 import {
@@ -17,6 +18,7 @@ import {
   getBatteries,
   getBatterySummary,
   getIdleBatteries,
+  snoozeBattery,
   updateBattery,
   issueBattery,
   collectBattery,
@@ -32,6 +34,12 @@ router.use(isAuthenticated);
 router.get("/summary", getBatterySummary);
 // which packs have sat unused 48h+: management's view
 router.get("/idle", authorizeRoles(...MANAGERS), getIdleBatteries);
+router.post(
+  "/:id/snooze",
+  authorizeRoles(...MANAGERS),
+  snoozeBatteryValidation(),
+  snoozeBattery,
+);
 router.get("/", listBatteriesValidation(), getBatteries);
 // registering/editing the fleet of packs is store work
 router.post(

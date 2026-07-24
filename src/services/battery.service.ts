@@ -5,6 +5,7 @@ import Battery from "../models/Battery";
 import BatteryMovement from "../models/BatteryMovement";
 import Bus from "../models/Bus";
 import Receipt from "../models/Receipt";
+import User from "../models/User";
 import { dayString } from "../helpers/day";
 import {
   ICreateBattery,
@@ -160,8 +161,10 @@ export const getIdleBatteriesService = async () => {
   );
   const todayMs = Date.parse(`${dayString()}T00:00:00Z`);
   const dayMs = 24 * 60 * 60 * 1000;
+  const now = new Date();
 
   const idle: Record<string, any>[] = [];
+  const snoozed: Record<string, any>[] = [];
   for (const battery of batteries) {
     const lastWorkedDate = lastByCode.get(battery.code) ?? null;
     // a pack that never worked has been idle since it was registered
@@ -169,26 +172,76 @@ export const getIdleBatteriesService = async () => {
       ? Date.parse(`${lastWorkedDate}T00:00:00Z`)
       : (battery.createdAt?.getTime() ?? todayMs);
     const idleDays = Math.floor((todayMs - sinceMs) / dayMs);
-    if (idleDays >= THRESHOLD_DAYS) {
-      idle.push({
-        _id: battery._id,
-        code: battery.code,
-        status: battery.status,
-        location: battery.location,
-        needsCheck: battery.needsCheck,
-        lastWorkedDate,
-        idleDays,
-      });
+    if (idleDays < THRESHOLD_DAYS) continue;
+
+    const row = {
+      _id: battery._id,
+      code: battery.code,
+      status: battery.status,
+      location: battery.location,
+      needsCheck: battery.needsCheck,
+      lastWorkedDate,
+      idleDays,
+      snoozedUntil: battery.idleSnoozedUntil ?? null,
+      snoozedByName: battery.idleSnoozedByName ?? "",
+    };
+    // a live snooze parks the pack aside; expiry brings it back by itself
+    if (battery.idleSnoozedUntil && battery.idleSnoozedUntil > now) {
+      snoozed.push(row);
+    } else {
+      idle.push(row);
     }
   }
 
   idle.sort((a, b) => b.idleDays - a.idleDays);
+  snoozed.sort(
+    (a, b) =>
+      new Date(a.snoozedUntil).getTime() - new Date(b.snoozedUntil).getTime(),
+  );
 
   return new ApiResponse(200, "Idle batteries retrieved successfully", {
     batteries: idle,
     count: idle.length,
+    snoozed,
+    snoozedCount: snoozed.length,
     thresholdHours: 48,
   });
+};
+
+// POST /api/batteries/:id/snooze: park a pack out of the idle warning
+// for 1 to 31 days (0 wakes it immediately). It returns on its own when
+// the time passes; nothing to clean up.
+export const snoozeBatteryService = async (
+  id: string,
+  days: number,
+  byId: string,
+) => {
+  const battery = await Battery.findById(id);
+  if (!battery) throw new ApiError(404, "Battery not found");
+
+  if (days === 0) {
+    battery.idleSnoozedUntil = undefined;
+    battery.idleSnoozedByName = undefined;
+    await battery.save();
+    return new ApiResponse(
+      200,
+      `${battery.code} is back on the idle watch`,
+      battery.toJSON(),
+    );
+  }
+
+  const user = await User.findById(byId);
+  battery.idleSnoozedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  battery.idleSnoozedByName = user
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : "";
+  await battery.save();
+
+  return new ApiResponse(
+    200,
+    `${battery.code} snoozed for ${days} day${days === 1 ? "" : "s"}`,
+    battery.toJSON(),
+  );
 };
 
 // PATCH /api/batteries/:id (admin)

@@ -5,6 +5,7 @@ import {
   getBatteriesService,
   getBatterySummaryService,
   getIdleBatteriesService,
+  snoozeBatteryService,
   updateBatteryService,
   issueBatteryService,
   collectBatteryService,
@@ -70,6 +71,23 @@ export const getIdleBatteries = async (
 ) => {
   try {
     const result = await getIdleBatteriesService();
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const snoozeBattery = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await snoozeBatteryService(
+      req.params.id,
+      Number(req.body.days),
+      String(req.user?._id),
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);
