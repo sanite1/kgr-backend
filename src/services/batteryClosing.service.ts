@@ -2,8 +2,6 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
-import Receipt from "../models/Receipt";
-import BatterySwap from "../models/BatterySwap";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
 import { BATTERY_LOCATIONS } from "../config/batteryLocations";
@@ -12,27 +10,6 @@ import {
   IClosingEntriesQuery,
   IClosingDaysQuery,
 } from "../interfaces/batteryClosing.interface";
-
-// What the system already knows about a pack's day: receipts that named
-// it carry expectedTrips, and swaps credit tripsAdded to the pack that
-// was supplied. Used when the staff leave the trips field empty.
-const deriveTrips = async (
-  date: string,
-  batteryName: string,
-): Promise<number> => {
-  const [receiptAgg, swapAgg] = await Promise.all([
-    Receipt.aggregate([
-      { $match: { date, batteryName, status: { $ne: "void" } } },
-      { $group: { _id: null, trips: { $sum: "$expectedTrips" } } },
-    ]),
-    BatterySwap.aggregate([
-      { $match: { date, suppliedBatteryCode: batteryName } },
-      { $group: { _id: null, trips: { $sum: "$tripsAdded" } } },
-    ]),
-  ]);
-  const total = (receiptAgg[0]?.trips ?? 0) + (swapAgg[0]?.trips ?? 0);
-  return Math.round(total * 2) / 2;
-};
 
 // POST /api/battery-closing: add one battery to today's closing sheet
 export const createClosingEntryService = async (
@@ -51,11 +28,9 @@ export const createClosingEntryService = async (
     );
   }
 
-  // no trips typed = let the day's receipts and swaps answer for the pack
-  const tripsAuto = payload.trips === undefined;
-  const trips = tripsAuto
-    ? await deriveTrips(date, batteryName)
-    : payload.trips!;
+  // these packs are being prepared for tomorrow, so trips are whatever
+  // the staff enter by hand; nothing is derived
+  const trips = payload.trips ?? 0;
 
   const user = await User.findById(addedById);
   const entry = await BatteryClosingEntry.create({
@@ -65,7 +40,7 @@ export const createClosingEntryService = async (
     voltage: payload.voltage,
     location: payload.location,
     trips,
-    tripsAuto,
+    tripsAuto: false,
     addedBy: addedById,
     addedByName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
   });
