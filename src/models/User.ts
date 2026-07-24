@@ -17,7 +17,7 @@ const userSchema = new Schema<IUser>(
     password: { type: String, required: true, select: false },
     role: {
       type: String,
-      enum: ["staff", "cashier", "storekeeper", "manager", "admin"],
+      enum: ["staff", "cashier", "storekeeper", "security", "manager", "admin"],
       default: "staff",
       index: true,
     },

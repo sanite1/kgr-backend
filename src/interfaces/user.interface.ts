@@ -37,7 +37,6 @@ export interface ICreateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
   role?: UserRole;
   access?: string[]; // per-user module overrides; absent = role defaults
 }

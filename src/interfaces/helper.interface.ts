@@ -3,6 +3,7 @@ export type UserRole =
   | "staff" // generic: view + raise part requests
   | "cashier" // front desk: issue receipts, check in, collect cash
   | "storekeeper" // store & workshop: stock, batteries, repairs
+  | "security" // the gate: verifies and clears approved gate passes
   | "manager" // approvals, voids, reports
   | "admin"; // everything, including users and trip price
 
@@ -41,3 +42,8 @@ export type ExitCheck =
 export type RepairStatus = "open" | "completed" | "cancelled";
 
 export type ConversionStatus = "new" | "in_review" | "contacted" | "closed";
+
+// property leaving the premises: raised -> management decides -> the gate
+// confirms it physically left
+export type GatePassStatus =
+  "pending" | "approved" | "declined" | "carried_out";

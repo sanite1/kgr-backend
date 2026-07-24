@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcrypt";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
@@ -24,6 +25,17 @@ import {
 } from "./nodemailer/mail.service";
 
 // POST /api/users: admin creates a staff/admin account (no public signup)
+// A starting password nobody has to type or share by hand: readable
+// characters only (no 0/O or 1/l lookalikes), emailed to the new user.
+const generatePassword = (): string => {
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 12; i++) {
+    out += alphabet[crypto.randomInt(alphabet.length)];
+  }
+  return out;
+};
+
 export const createUserService = async (
   payload: ICreateUserRequest,
   createdBy: string,
@@ -33,19 +45,20 @@ export const createUserService = async (
     throw new ApiError(409, "A user with this email already exists");
   }
 
+  const password = generatePassword();
   const user = await User.create({
     firstName: payload.firstName,
     lastName: payload.lastName,
     email: payload.email,
-    password: await bcrypt.hash(payload.password, 10),
+    password: await bcrypt.hash(password, 10),
     role: payload.role || "staff",
     access: payload.role === "admin" ? undefined : payload.access,
     createdBy,
   });
 
   // fire-and-forget: a failed email never breaks user creation.
-  // pass the plaintext password (pre-hash) so the email can show it once.
-  void sendWelcomeMail(user, payload.password);
+  // the generated plaintext goes only into this one email.
+  void sendWelcomeMail(user, password);
 
   return new ApiResponse(201, "User created successfully", user.toJSON());
 };

@@ -363,3 +363,55 @@ export const sendPartnershipNotificationMail = async (
     },
   );
 };
+
+// gate pass: property leaving company grounds
+export const sendGatePassRequestMail = async (
+  approverEmail: string,
+  context: {
+    approverName: string;
+    passId: number;
+    requestedByName: string;
+    department: string;
+    itemsCount: number;
+    exitAt: string;
+    consoleUrl: string;
+  },
+) => {
+  await sendNoticeMail(
+    approverEmail,
+    `Gate pass #${context.passId} needs your approval`,
+    {
+      title: `Gate pass #${context.passId} is waiting`,
+      name: context.approverName,
+      intro:
+        `${context.requestedByName} (${context.department}) wants to take ` +
+        `${context.itemsCount} item${context.itemsCount === 1 ? "" : "s"} out of company grounds. ` +
+        `Planned exit: ${context.exitAt}. Security will only release it after your approval.`,
+      ctaLabel: "Review and decide",
+      ctaUrl: context.consoleUrl,
+    },
+  );
+};
+
+export const sendGatePassDecisionMail = async (
+  requesterEmail: string,
+  context: {
+    name: string;
+    passId: number;
+    approved: boolean;
+    note?: string;
+  },
+) => {
+  await sendNoticeMail(
+    requesterEmail,
+    `Gate pass #${context.passId} ${context.approved ? "approved" : "declined"}`,
+    {
+      title: `Your gate pass was ${context.approved ? "approved" : "declined"}`,
+      name: context.name,
+      intro: context.approved
+        ? `Gate pass #${context.passId} has been approved. Show it at the gate; security will confirm and let you through.`
+        : `Gate pass #${context.passId} was declined. Speak to management if you believe this is a mistake.`,
+      note: context.note,
+    },
+  );
+};
