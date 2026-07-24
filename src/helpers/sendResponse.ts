@@ -11,5 +11,8 @@ export const sendResponse = <T>(
     data: result.data,
   };
   if (result instanceof PaginatedResponse) body.pagination = result.pagination;
+  // responses may carry extra top-level fields (e.g. board counts)
+  const extra = (result as { extra?: Record<string, unknown> }).extra;
+  if (extra) Object.assign(body, extra);
   res.status(result.statusCode).json(body);
 };
