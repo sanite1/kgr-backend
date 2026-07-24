@@ -6,6 +6,37 @@ interface CustomError extends Error {
   [key: string]: any;
 }
 
+// Turns raw Joi wording into something a person can act on:
+//   "rows[16].mileageKm" must be <= 10000  ->  mileage km (row 17) must be <= 10000
+const humanizeFieldMessage = (raw: string): string =>
+  raw.replace(/"([^"]+)"/g, (_match, label: string) => {
+    const indexed = label.match(/^(\w+)\[(\d+)\]\.?(.*)$/);
+    let name = label;
+    let suffix = "";
+    if (indexed) {
+      name = indexed[3] || indexed[1];
+      suffix = ` (row ${Number(indexed[2]) + 1})`;
+    }
+    const words = name
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/[._]/g, " ")
+      .toLowerCase();
+    return words + suffix;
+  });
+
+// The generic "Validation Failed" tells the user nothing; lead with the
+// first real problem so every client shows something actionable.
+const composeValidationMessage = (
+  fields: { message: string; path: string | number }[],
+): string => {
+  const first = fields[0]?.message || "Validation failed";
+  const lead = first.charAt(0).toUpperCase() + first.slice(1);
+  const extra = fields.length - 1;
+  return extra > 0
+    ? `${lead} (+${extra} more issue${extra === 1 ? "" : "s"})`
+    : lead;
+};
+
 export const globalErrorHandler = (
   error: CustomError,
   _req: Request,
@@ -18,7 +49,6 @@ export const globalErrorHandler = (
 
   if (error instanceof ValidationError) {
     statusCode = 400;
-    message = "Validation Failed";
     if (error.details.body)
       fields = [
         ...fields,
@@ -46,7 +76,6 @@ export const globalErrorHandler = (
   }
   if (error.name === "ValidationError" && error.errors) {
     statusCode = 400;
-    message = "Validation Failed";
     fields = [
       ...fields,
       ...Object.entries(error.errors).map(([key, value]: any) => ({
@@ -55,6 +84,13 @@ export const globalErrorHandler = (
           value?.properties?.message || value?.message || "Invalid value",
       })),
     ];
+  }
+  if (fields.length > 0) {
+    fields = fields.map((f) => ({
+      ...f,
+      message: humanizeFieldMessage(f.message),
+    }));
+    message = composeValidationMessage(fields);
   }
   if (error.name === "CastError") {
     statusCode = 400;
