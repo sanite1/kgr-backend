@@ -8,6 +8,7 @@ export const createUserValidation = () =>
         firstName: Joi.string().min(2).max(100).required(),
         lastName: Joi.string().min(2).max(100).required(),
         email: Joi.string().email().required(),
+        password: Joi.string().min(8).max(128),
         access: Joi.array().items(Joi.string().valid(...MODULE_KEYS)),
         role: Joi.string().valid(
           "staff",

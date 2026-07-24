@@ -45,7 +45,8 @@ export const createUserService = async (
     throw new ApiError(409, "A user with this email already exists");
   }
 
-  const password = generatePassword();
+  // the admin's chosen password wins; otherwise one is generated
+  const password = payload.password || generatePassword();
   const user = await User.create({
     firstName: payload.firstName,
     lastName: payload.lastName,
