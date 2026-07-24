@@ -111,33 +111,38 @@ export const getClosingDaysService = async (query: IClosingDaysQuery) => {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
 
-  const [days, totalRows] = await Promise.all([
-    BatteryClosingEntry.aggregate([
-      {
-        $group: {
-          _id: "$date",
-          count: { $sum: 1 },
-          fullyCharged: {
-            $sum: { $cond: [{ $eq: ["$percent", 100] }, 1, 0] },
-          },
-          totalTrips: { $sum: { $ifNull: ["$trips", 0] } },
-        },
+  // one row per person per day, so management sees exactly who closed
+  // which batteries, the same way the battery exit form history reads
+  const groupStage = {
+    $group: {
+      _id: { date: "$date", addedBy: "$addedBy", name: "$addedByName" },
+      count: { $sum: 1 },
+      fullyCharged: {
+        $sum: { $cond: [{ $eq: ["$percent", 100] }, 1, 0] },
       },
-      { $sort: { _id: -1 } },
+      totalTrips: { $sum: { $ifNull: ["$trips", 0] } },
+    },
+  };
+
+  const [days, countRows] = await Promise.all([
+    BatteryClosingEntry.aggregate([
+      groupStage,
+      { $sort: { "_id.date": -1, "_id.name": 1 } },
       { $skip: (page - 1) * pageSize },
       { $limit: pageSize },
     ]),
-    BatteryClosingEntry.distinct("date"),
+    BatteryClosingEntry.aggregate([groupStage, { $count: "n" }]),
   ]);
 
   return PaginatedResponse.build(
     days.map((d: any) => ({
-      date: d._id,
+      date: d._id.date,
+      issuedByName: d._id.name || "",
       count: d.count,
       fullyCharged: d.fullyCharged,
       totalTrips: Math.round((d.totalTrips ?? 0) * 2) / 2,
     })),
-    totalRows.length,
+    countRows[0]?.n ?? 0,
     page,
     pageSize,
     "Closing report days retrieved successfully",
