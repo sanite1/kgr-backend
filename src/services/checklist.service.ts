@@ -71,8 +71,16 @@ export const createChecklistEntryService = async (
   );
 };
 
-// GET /api/checklists?kind=&date=: the day's sheet plus its totals
-export const getChecklistService = async (query: IChecklistQuery) => {
+// GET /api/checklists?kind=&date=: the day's sheet plus its totals.
+// Security only ever sees their own list; the admin list is not theirs
+// to read - that separation is what makes the cross-check honest.
+export const getChecklistService = async (
+  query: IChecklistQuery,
+  role: UserRole,
+) => {
+  if (role === "security" && query.kind !== "security") {
+    throw new ApiError(403, "Security can only view the security checklist");
+  }
   const date = query.date || dayString();
   const entries = await ChecklistEntry.find({ date, kind: query.kind }).sort({
     createdAt: 1,

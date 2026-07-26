@@ -42,6 +42,7 @@ export const getChecklist = async (
   try {
     const result = await getChecklistService(
       req.query as unknown as IChecklistQuery,
+      req.user?.role as UserRole,
     );
     sendResponse(res, result);
   } catch (error) {
