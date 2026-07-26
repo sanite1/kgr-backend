@@ -4,6 +4,12 @@ import { IBatteryClosingEntry } from "../interfaces/batteryClosing.interface";
 const batteryClosingEntrySchema = new Schema<IBatteryClosingEntry>(
   {
     date: { type: String, required: true, index: true },
+    sheet: {
+      type: String,
+      enum: ["main", "muhd_kamila"],
+      default: "main",
+      index: true,
+    },
     batteryName: {
       type: String,
       required: true,

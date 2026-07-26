@@ -1,9 +1,14 @@
 import { Document, Types } from "mongoose";
 import { BatteryLocation } from "./helper.interface";
 
+// Two identical closing sheets kept by different people: the main yard
+// one and the Muh'd & Kamila house one. Same format, separate lists.
+export type ClosingSheetKey = "main" | "muhd_kamila";
+
 // one battery on the evening closing sheet
 export interface IBatteryClosingEntry extends Document {
   date: string; // Lagos business day, YYYY-MM-DD
+  sheet: ClosingSheetKey;
   batteryName: string; // typed, uppercase
   percent: 50 | 75 | 100;
   voltage: string; // typed as read off the meter

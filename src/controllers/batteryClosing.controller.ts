@@ -10,64 +10,70 @@ import {
   ICreateClosingEntry,
   IClosingEntriesQuery,
   IClosingDaysQuery,
+  ClosingSheetKey,
 } from "../interfaces/batteryClosing.interface";
 
-export const createClosingEntry = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await createClosingEntryService(
-      req.body as ICreateClosingEntry,
-      String(req.user?._id),
-    );
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
+// One set of handlers per sheet: the main yard routes and the Muh'd &
+// Kamila house routes share everything except which sheet they write.
+export const makeClosingControllers = (sheet: ClosingSheetKey) => ({
+  createClosingEntry: async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await createClosingEntryService(
+        req.body as ICreateClosingEntry,
+        String(req.user?._id),
+        sheet,
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
 
-export const getClosingEntries = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await getClosingEntriesService(
-      req.query as IClosingEntriesQuery,
-    );
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
+  getClosingEntries: async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await getClosingEntriesService(
+        req.query as IClosingEntriesQuery,
+        sheet,
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
 
-export const getClosingDays = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await getClosingDaysService(req.query as IClosingDaysQuery);
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
+  getClosingDays: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await getClosingDaysService(
+        req.query as IClosingDaysQuery,
+        sheet,
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
 
-export const deleteClosingEntry = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await deleteClosingEntryService(req.params.id, {
-      id: String(req.user?._id),
-      role: String(req.user?.role),
-    });
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
+  deleteClosingEntry: async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await deleteClosingEntryService(req.params.id, {
+        id: String(req.user?._id),
+        role: String(req.user?.role),
+      });
+      sendResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+});

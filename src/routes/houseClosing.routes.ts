@@ -11,16 +11,19 @@ import {
 } from "../validations/batteryClosing.validation";
 import { makeClosingControllers } from "../controllers/batteryClosing.controller";
 
+// The Muh'd & Kamila house closing sheet: same format as the main yard
+// battery closing, its own list and its own access toggle so different
+// people take this report.
 const {
   createClosingEntry,
   getClosingEntries,
   getClosingDays,
   deleteClosingEntry,
-} = makeClosingControllers("main");
+} = makeClosingControllers("muhd_kamila");
 
 const router = Router();
 
-router.use(isAuthenticated, requireAccess("battery_closing"));
+router.use(isAuthenticated, requireAccess("house_closing"));
 
 // static paths before param paths; past-days overview is management's
 router.get(

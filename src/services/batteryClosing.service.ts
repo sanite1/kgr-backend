@@ -9,18 +9,29 @@ import {
   ICreateClosingEntry,
   IClosingEntriesQuery,
   IClosingDaysQuery,
+  ClosingSheetKey,
 } from "../interfaces/batteryClosing.interface";
+
+// entries written before the sheets split have no sheet field; they
+// belong to the main yard sheet
+const sheetFilter = (sheet: ClosingSheetKey) =>
+  sheet === "main" ? { sheet: { $in: ["main", null] } } : { sheet };
 
 // POST /api/battery-closing: add one battery to today's closing sheet
 export const createClosingEntryService = async (
   payload: ICreateClosingEntry,
   addedById: string,
+  sheet: ClosingSheetKey,
 ) => {
   const date = dayString();
   const batteryName = payload.batteryName.trim().toUpperCase();
 
   // the same pack twice on one evening's sheet is a slip
-  const dupe = await BatteryClosingEntry.findOne({ date, batteryName });
+  const dupe = await BatteryClosingEntry.findOne({
+    date,
+    batteryName,
+    ...sheetFilter(sheet),
+  });
   if (dupe) {
     throw new ApiError(
       409,
@@ -35,6 +46,7 @@ export const createClosingEntryService = async (
   const user = await User.findById(addedById);
   const entry = await BatteryClosingEntry.create({
     date,
+    sheet,
     batteryName,
     percent: payload.percent,
     voltage: payload.voltage,
@@ -53,9 +65,15 @@ export const createClosingEntryService = async (
 };
 
 // GET /api/battery-closing?date=: the day's sheet plus its footer totals
-export const getClosingEntriesService = async (query: IClosingEntriesQuery) => {
+export const getClosingEntriesService = async (
+  query: IClosingEntriesQuery,
+  sheet: ClosingSheetKey,
+) => {
   const date = query.date || dayString();
-  const entries = await BatteryClosingEntry.find({ date }).sort({
+  const entries = await BatteryClosingEntry.find({
+    date,
+    ...sheetFilter(sheet),
+  }).sort({
     createdAt: 1,
   });
 
@@ -82,7 +100,10 @@ export const getClosingEntriesService = async (query: IClosingEntriesQuery) => {
 };
 
 // GET /api/battery-closing/days: past sheets, newest first (managers)
-export const getClosingDaysService = async (query: IClosingDaysQuery) => {
+export const getClosingDaysService = async (
+  query: IClosingDaysQuery,
+  sheet: ClosingSheetKey,
+) => {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
 
@@ -99,14 +120,17 @@ export const getClosingDaysService = async (query: IClosingDaysQuery) => {
     },
   };
 
+  const matchStage = { $match: sheetFilter(sheet) };
+
   const [days, countRows] = await Promise.all([
     BatteryClosingEntry.aggregate([
+      matchStage,
       groupStage,
       { $sort: { "_id.date": -1, "_id.name": 1 } },
       { $skip: (page - 1) * pageSize },
       { $limit: pageSize },
     ]),
-    BatteryClosingEntry.aggregate([groupStage, { $count: "n" }]),
+    BatteryClosingEntry.aggregate([matchStage, groupStage, { $count: "n" }]),
   ]);
 
   return PaginatedResponse.build(
