@@ -17,7 +17,7 @@ const checklistEntrySchema = new Schema<IChecklistEntry>(
       required: true,
     },
     batteryName: { type: String, required: true, trim: true, uppercase: true },
-    trips: { type: Number, enum: [1, 1.5, 2, 3], required: true },
+    trips: { type: Number, enum: [1, 1.5, 2, 2.5, 3], required: true },
     addedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     addedByName: { type: String, default: "" },
   },

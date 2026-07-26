@@ -8,8 +8,8 @@ export const createChecklistEntryValidation = () =>
         busName: Joi.string().min(1).max(30).required(),
         session: Joi.string().valid("morning", "evening").required(),
         batteryName: Joi.string().min(1).max(40).required(),
-        trips: Joi.number().valid(1, 1.5, 2, 3).required().messages({
-          "any.only": "trips must be 1, 1.5, 2 or 3",
+        trips: Joi.number().valid(1, 1.5, 2, 2.5, 3).required().messages({
+          "any.only": "trips must be 1, 1.5, 2, 2.5 or 3",
         }),
       }),
     },
