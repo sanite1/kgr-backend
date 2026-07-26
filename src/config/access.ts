@@ -11,6 +11,7 @@ export const ACCESS_MODULES = [
   { key: "receipts", label: "Receipts" },
   { key: "daily_account", label: "Daily Account" },
   { key: "inventory", label: "Inventory" },
+  { key: "warehouse", label: "Warehouse" },
   { key: "requests", label: "Requests" },
   { key: "batteries", label: "Batteries" },
   { key: "battery_form", label: "Battery Form" },
@@ -48,9 +49,9 @@ const EVERYONE: ModuleKey[] = [
 
 // What each role gets until an admin customizes the individual user.
 export const ROLE_DEFAULT_ACCESS: Record<UserRole, ModuleKey[]> = {
-  staff: [...EVERYONE, "inventory"],
+  staff: [...EVERYONE, "inventory", "warehouse"],
   cashier: [...EVERYONE, "generate", "paypoint", "nyp", "receipts"],
-  storekeeper: [...EVERYONE, "inventory", "batteries", "repairs"],
+  storekeeper: [...EVERYONE, "inventory", "warehouse", "batteries", "repairs"],
   security: ["gate_pass", "checklists"], // the gate desk plus its tally
   manager: MODULE_KEYS.filter((k) => k !== "users"),
   admin: [...MODULE_KEYS],
