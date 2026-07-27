@@ -156,22 +156,14 @@ export const getDailyAccountService = async (query: IDailyAccountQuery) => {
   const [receiptAgg, moneyAgg, cashierAgg, totalItems, pagePayments] =
     await Promise.all([
       Receipt.aggregate([
-        { $match: { date } },
+        { $match: { date, status: { $ne: "void" } } },
         {
           $group: {
             _id: null,
-            issuedCount: {
-              $sum: { $cond: [{ $ne: ["$status", "void"] }, 1, 0] },
-            },
-            expected: {
-              $sum: {
-                $cond: [
-                  { $ne: ["$status", "void"] },
-                  { $toDouble: "$expectedAmount" },
-                  0,
-                ],
-              },
-            },
+            issuedCount: { $sum: 1 },
+            expected: { $sum: { $toDouble: "$expectedAmount" } },
+            trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+            buses: { $addToSet: "$busNumber" },
           },
         },
       ]),
@@ -215,7 +207,12 @@ export const getDailyAccountService = async (query: IDailyAccountQuery) => {
         .populate("collectedBy", "firstName lastName"),
     ]);
 
-  const receipts = receiptAgg[0] || { issuedCount: 0, expected: 0 };
+  const receipts = receiptAgg[0] || {
+    issuedCount: 0,
+    expected: 0,
+    trips: 0,
+    buses: [],
+  };
   const money = moneyAgg[0] || { total: 0, fromToday: 0 };
 
   // put names to the cashier ids
@@ -230,6 +227,8 @@ export const getDailyAccountService = async (query: IDailyAccountQuery) => {
   return new ApiResponse(200, "Daily account retrieved successfully", {
     date,
     receiptsIssued: receipts.issuedCount,
+    trips: Math.round((receipts.trips ?? 0) * 2) / 2,
+    busesWorked: (receipts.buses ?? []).length,
     expectedAmount: String(receipts.expected),
     collectedTotal: String(money.total),
     collectedFromToday: String(money.fromToday),
