@@ -12,7 +12,14 @@ import {
   ChecklistKind,
 } from "../interfaces/checklist.interface";
 
-// security writes the security list; everyone else writes the admin
+// the "admin" kind is shown to users as the STAFF checklist; the value
+// stays "admin" in the database so existing records are untouched
+const SHEET_LABEL: Record<ChecklistKind, string> = {
+  security: "security",
+  admin: "staff",
+};
+
+// security writes the security list; everyone else writes the staff
 // list; admins can write both. Keeping the two lists separate is the
 // whole point - management compares them.
 const assertCanWrite = (kind: ChecklistKind, role: UserRole): void => {
@@ -23,7 +30,7 @@ const assertCanWrite = (kind: ChecklistKind, role: UserRole): void => {
   if (kind === "admin" && role === "security") {
     throw new ApiError(
       403,
-      "Security fills the security checklist, not the admin one",
+      "Security fills the security checklist, not the staff one",
     );
   }
 };
@@ -48,7 +55,7 @@ export const createChecklistEntryService = async (
   if (dupe) {
     throw new ApiError(
       409,
-      `${busName} is already cleared for the ${payload.session} on today's ${payload.kind} checklist`,
+      `${busName} is already cleared for the ${payload.session} on today's ${SHEET_LABEL[payload.kind]} checklist`,
     );
   }
 
@@ -72,14 +79,25 @@ export const createChecklistEntryService = async (
 };
 
 // GET /api/checklists?kind=&date=: the day's sheet plus its totals.
-// Security only ever sees their own list; the admin list is not theirs
-// to read - that separation is what makes the cross-check honest.
+// Everyone below management sees only their own list - security theirs,
+// staff theirs. Only managers and admins read both and compare.
 export const getChecklistService = async (
   query: IChecklistQuery,
   role: UserRole,
 ) => {
   if (role === "security" && query.kind !== "security") {
     throw new ApiError(403, "Security can only view the security checklist");
+  }
+  if (
+    query.kind === "security" &&
+    role !== "security" &&
+    role !== "admin" &&
+    role !== "manager"
+  ) {
+    throw new ApiError(
+      403,
+      "The security checklist is for security and management",
+    );
   }
   const date = query.date || dayString();
   const entries = await ChecklistEntry.find({ date, kind: query.kind }).sort({
@@ -185,7 +203,7 @@ export const deleteChecklistEntryService = async (
   await entry.deleteOne();
   return new ApiResponse(
     200,
-    `${entry.busName} removed from the ${entry.kind} checklist`,
+    `${entry.busName} removed from the ${SHEET_LABEL[entry.kind]} checklist`,
     undefined,
   );
 };
