@@ -6,12 +6,14 @@ import { requireAccess } from "../middlewares/requireAccess";
 import {
   createChecklistEntryValidation,
   listChecklistValidation,
+  checklistCompareValidation,
   checklistDaysValidation,
   checklistEntryIdValidation,
 } from "../validations/checklist.validation";
 import {
   createChecklistEntry,
   getChecklist,
+  getChecklistCompare,
   getChecklistDays,
   deleteChecklistEntry,
 } from "../controllers/checklist.controller";
@@ -26,6 +28,13 @@ router.get(
   authorizeRoles(...MANAGERS),
   checklistDaysValidation(),
   getChecklistDays,
+);
+// the side by side comparison of the two lists is management's view
+router.get(
+  "/compare",
+  authorizeRoles(...MANAGERS),
+  checklistCompareValidation(),
+  getChecklistCompare,
 );
 router.get("/", listChecklistValidation(), getChecklist);
 router.post("/", createChecklistEntryValidation(), createChecklistEntry);

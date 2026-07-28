@@ -9,7 +9,11 @@ import {
   ICreateChecklistEntry,
   IChecklistQuery,
   IChecklistDaysQuery,
+  IChecklistCompareQuery,
+  ICompareSide,
+  CompareStatus,
   ChecklistKind,
+  IChecklistEntry,
 } from "../interfaces/checklist.interface";
 
 // the "admin" kind is shown to users as the STAFF checklist; the value
@@ -130,6 +134,95 @@ export const getChecklistService = async (
       totalTrips: round(morningTrips + eveningTrips),
       morningBuses,
       eveningBuses,
+    },
+  });
+};
+
+// GET /api/checklists/compare?date=: the two lists laid side by side,
+// matched by bus and session (managers only, enforced at the route).
+// Both agree on battery and trips: match. Both wrote it, details differ:
+// mismatch. Only one list has it: that list's "only" status.
+export const getChecklistCompareService = async (
+  query: IChecklistCompareQuery,
+) => {
+  const date = query.date || dayString();
+  const entries = await ChecklistEntry.find({ date });
+
+  const side = (e: IChecklistEntry): ICompareSide => ({
+    batteryName: e.batteryName,
+    trips: e.trips,
+    addedByName: e.addedByName,
+    createdAt: e.createdAt,
+  });
+
+  // people type the same thing differently: "A 2" and "a2", "Muh'd 12"
+  // and "MUHD12". Matching ignores case, spaces and punctuation so only
+  // real differences (usually the trips) surface. Display keeps what
+  // was typed.
+  const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  // one entry per bus per session per list per day (the dupe guard),
+  // so a plain map per list is safe
+  const security = new Map<string, ICompareSide>();
+  const staff = new Map<string, ICompareSide>();
+  const busLabel = new Map<string, string>(); // first spelling seen
+  for (const e of entries) {
+    const key = `${canon(e.busName)}|${e.session}`;
+    if (!busLabel.has(key)) busLabel.set(key, e.busName);
+    (e.kind === "security" ? security : staff).set(key, side(e));
+  }
+
+  const keys = [...new Set([...security.keys(), ...staff.keys()])];
+  const rows = keys.map((key) => {
+    const [canonBus, session] = key.split("|");
+    const busName = busLabel.get(key) || canonBus;
+    const sec = security.get(key) ?? null;
+    const stf = staff.get(key) ?? null;
+    let status: CompareStatus;
+    if (sec && stf) {
+      status =
+        canon(sec.batteryName) === canon(stf.batteryName) &&
+        sec.trips === stf.trips
+          ? "match"
+          : "mismatch";
+    } else {
+      status = sec ? "security_only" : "staff_only";
+    }
+    return { busName, session, security: sec, staff: stf, status };
+  });
+
+  // trouble reads first: red, then yellow, then green, buses in order
+  const rank: Record<CompareStatus, number> = {
+    mismatch: 0,
+    security_only: 1,
+    staff_only: 1,
+    match: 2,
+  };
+  rows.sort(
+    (a, b) =>
+      rank[a.status] - rank[b.status] ||
+      a.busName.localeCompare(b.busName, undefined, { numeric: true }) ||
+      a.session.localeCompare(b.session),
+  );
+
+  const round = (n: number) => Math.round(n * 2) / 2;
+  let securityTrips = 0;
+  let staffTrips = 0;
+  for (const row of rows) {
+    securityTrips += row.security?.trips ?? 0;
+    staffTrips += row.staff?.trips ?? 0;
+  }
+
+  return new ApiResponse(200, "Checklist comparison retrieved successfully", {
+    date,
+    rows,
+    totals: {
+      matched: rows.filter((r) => r.status === "match").length,
+      mismatched: rows.filter((r) => r.status === "mismatch").length,
+      securityOnly: rows.filter((r) => r.status === "security_only").length,
+      staffOnly: rows.filter((r) => r.status === "staff_only").length,
+      securityTrips: round(securityTrips),
+      staffTrips: round(staffTrips),
     },
   });
 };

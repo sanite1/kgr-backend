@@ -4,12 +4,14 @@ import { UserRole } from "../interfaces/helper.interface";
 import {
   createChecklistEntryService,
   getChecklistService,
+  getChecklistCompareService,
   getChecklistDaysService,
   deleteChecklistEntryService,
 } from "../services/checklist.service";
 import {
   ICreateChecklistEntry,
   IChecklistQuery,
+  IChecklistCompareQuery,
   IChecklistDaysQuery,
 } from "../interfaces/checklist.interface";
 
@@ -43,6 +45,21 @@ export const getChecklist = async (
     const result = await getChecklistService(
       req.query as unknown as IChecklistQuery,
       req.user?.role as UserRole,
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getChecklistCompare = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getChecklistCompareService(
+      req.query as IChecklistCompareQuery,
     );
     sendResponse(res, result);
   } catch (error) {

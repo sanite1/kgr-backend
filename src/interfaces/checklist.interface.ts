@@ -36,3 +36,20 @@ export interface IChecklistDaysQuery {
   page?: number;
   pageSize?: number;
 }
+
+export interface IChecklistCompareQuery {
+  date?: string; // defaults to today
+}
+
+// one side of a compared row: what one list wrote for a bus and session
+export interface ICompareSide {
+  batteryName: string;
+  trips: number;
+  addedByName: string;
+  createdAt: Date | undefined;
+}
+
+// green: both lists agree; red: both wrote it but differently;
+// yellow: only one list has it
+export type CompareStatus =
+  "match" | "mismatch" | "security_only" | "staff_only";
