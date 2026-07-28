@@ -1,12 +1,24 @@
 import { Document, Types } from "mongoose";
 import { GatePassStatus } from "./helper.interface";
 
+// security's verdict on one item, given at the gate against the pass
+// itself: cleared means what they see matches the line; flagged means
+// more, less or different, and the item is NOT allowed out
+export interface IItemClearance {
+  status: "cleared" | "flagged";
+  seenQuantity?: number; // what security actually counted
+  note?: string;
+  byName?: string; // snapshot of the security person
+  at?: Date;
+}
+
 // one line on the exit form: what is leaving, how much, why, where to
 export interface IGatePassItem {
   description: string;
   quantity: number;
   purpose: string;
   location: string;
+  clearance?: IItemClearance; // absent until security checks it
 }
 
 export interface IGatePass extends Document {
@@ -43,6 +55,12 @@ export interface ICreateGatePass {
 }
 
 export interface IDecideGatePass {
+  note?: string;
+}
+
+export interface IClearGatePassItem {
+  outcome: "cleared" | "flagged";
+  seenQuantity?: number;
   note?: string;
 }
 

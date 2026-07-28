@@ -45,6 +45,23 @@ export const decideGatePassValidation = () =>
     { abortEarly: false },
   );
 
+export const clearGatePassItemValidation = () =>
+  validate(
+    {
+      params: Joi.object({
+        id: Joi.string().hex().length(24).required(),
+        index: Joi.number().integer().min(0).required(),
+      }),
+      body: Joi.object({
+        outcome: Joi.string().valid("cleared", "flagged").required(),
+        seenQuantity: Joi.number().integer().min(0).max(100000),
+        note: Joi.string().max(300).allow(""),
+      }),
+    },
+    { context: true },
+    { abortEarly: false },
+  );
+
 export const listGatePassesValidation = () =>
   validate(
     {

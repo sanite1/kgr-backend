@@ -16,6 +16,7 @@ import {
   IGatePass,
   ICreateGatePass,
   IDecideGatePass,
+  IClearGatePassItem,
   IGatePassesQuery,
 } from "../interfaces/gatePass.interface";
 
@@ -241,6 +242,64 @@ export const declineGatePassService = async (
 
 // POST /api/gate-passes/:id/carry-out (security, admin): the items have
 // physically left through the gate. Only an approved pass can leave.
+// POST /api/gate-passes/:id/items/:index/clear: the staff shows the
+// pass number at the gate, security opens the pass and checks the
+// listed items one by one against what they can actually see. Cleared
+// means it matches; flagged means more, less or different, and the
+// item is NOT allowed out. Re-checking overwrites, so a mis-tap is
+// fixable while the pass is still open.
+export const clearGatePassItemService = async (
+  id: string,
+  index: number,
+  payload: IClearGatePassItem,
+  requester: Requester,
+) => {
+  const pass = await GatePass.findById(id);
+  if (!pass) throw new ApiError(404, "Gate pass not found");
+  if (pass.status !== "approved") {
+    throw new ApiError(
+      400,
+      pass.status === "carried_out"
+        ? `Gate pass #${pass.passId} was already carried out`
+        : `Gate pass #${pass.passId} is not approved. Do not release these items.`,
+    );
+  }
+
+  const item = pass.items[index];
+  if (!item) throw new ApiError(404, "That item is not on this pass");
+
+  const note = payload.note?.trim() || "";
+  if (
+    payload.outcome === "flagged" &&
+    payload.seenQuantity === undefined &&
+    !note
+  ) {
+    throw new ApiError(
+      400,
+      "Say what you saw: enter the quantity seen or write a note",
+    );
+  }
+
+  const user = await User.findById(requester.id);
+  item.clearance = {
+    status: payload.outcome,
+    seenQuantity: payload.seenQuantity,
+    note,
+    byName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
+    at: new Date(),
+  };
+  pass.markModified("items");
+  await pass.save();
+
+  return new ApiResponse(
+    200,
+    payload.outcome === "cleared"
+      ? `"${item.description}" cleared at the gate`
+      : `"${item.description}" flagged and held back`,
+    pass.toJSON(),
+  );
+};
+
 export const carryOutGatePassService = async (
   id: string,
   requester: Requester,
@@ -266,6 +325,15 @@ export const carryOutGatePassService = async (
     );
   }
 
+  // release only after the gate has looked at every single line
+  const undecided = pass.items.filter((i) => !i.clearance?.status).length;
+  if (undecided > 0) {
+    throw new ApiError(
+      400,
+      `Check every item first: ${undecided} ${undecided === 1 ? "item" : "items"} on pass #${pass.passId} not yet cleared or flagged`,
+    );
+  }
+
   const user = await User.findById(requester.id);
   pass.status = "carried_out";
   pass.carriedOutBy = requester.id as any;
@@ -275,9 +343,14 @@ export const carryOutGatePassService = async (
   pass.carriedOutAt = new Date();
   await pass.save();
 
+  const flagged = pass.items.filter(
+    (i) => i.clearance?.status === "flagged",
+  ).length;
   return new ApiResponse(
     200,
-    `Gate pass #${pass.passId} marked carried out`,
+    flagged > 0
+      ? `Gate pass #${pass.passId} released with ${flagged} ${flagged === 1 ? "item" : "items"} held back`
+      : `Gate pass #${pass.passId} marked carried out`,
     pass.toJSON(),
   );
 };

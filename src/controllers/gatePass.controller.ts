@@ -7,10 +7,12 @@ import {
   approveGatePassService,
   declineGatePassService,
   carryOutGatePassService,
+  clearGatePassItemService,
 } from "../services/gatePass.service";
 import {
   ICreateGatePass,
   IDecideGatePass,
+  IClearGatePassItem,
   IGatePassesQuery,
 } from "../interfaces/gatePass.interface";
 
@@ -77,6 +79,24 @@ export const declineGatePass = async (
     const result = await declineGatePassService(
       req.params.id,
       req.body as IDecideGatePass,
+      requester(req),
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const clearGatePassItem = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await clearGatePassItemService(
+      req.params.id,
+      Number(req.params.index),
+      req.body as IClearGatePassItem,
       requester(req),
     );
     sendResponse(res, result);

@@ -6,6 +6,7 @@ import { requireAccess } from "../middlewares/requireAccess";
 import {
   createGatePassValidation,
   decideGatePassValidation,
+  clearGatePassItemValidation,
   listGatePassesValidation,
 } from "../validations/gatePass.validation";
 import {
@@ -13,6 +14,7 @@ import {
   getGatePasses,
   approveGatePass,
   declineGatePass,
+  clearGatePassItem,
   carryOutGatePass,
 } from "../controllers/gatePass.controller";
 
@@ -38,7 +40,13 @@ router.post(
   declineGatePass,
 );
 
-// only the gate (or admin) confirms items physically left
+// only the gate (or admin) checks items and confirms they left
+router.post(
+  "/:id/items/:index/clear",
+  authorizeRoles("security", "admin"),
+  clearGatePassItemValidation(),
+  clearGatePassItem,
+);
 router.post(
   "/:id/carry-out",
   authorizeRoles("security", "admin"),

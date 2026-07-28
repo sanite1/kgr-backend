@@ -1,12 +1,26 @@
 import { Schema, model } from "mongoose";
 import { IGatePass } from "../interfaces/gatePass.interface";
 
+// filled by security at the gate, one verdict per item; absent until
+// the item is checked
+const clearanceSchema = new Schema(
+  {
+    status: { type: String, enum: ["cleared", "flagged"], required: true },
+    seenQuantity: { type: Number, min: 0 },
+    note: { type: String, default: "", trim: true },
+    byName: { type: String, default: "" },
+    at: { type: Date },
+  },
+  { _id: false },
+);
+
 const itemSchema = new Schema(
   {
     description: { type: String, required: true, trim: true },
     quantity: { type: Number, required: true, min: 1 },
     purpose: { type: String, default: "", trim: true },
     location: { type: String, default: "", trim: true },
+    clearance: { type: clearanceSchema, default: undefined },
   },
   { _id: false },
 );
