@@ -113,12 +113,27 @@ export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
     },
   };
 
-  const [allAgg, todayAgg, monthAgg, rangeAgg, receipts, totalItems] =
+  // each bus should make at least this many trips every working day;
+  // days below it are painted red on the page
+  const MIN_TRIPS_PER_DAY = 3;
+
+  const [allAgg, todayAgg, monthAgg, rangeAgg, daysAgg, receipts, totalItems] =
     await Promise.all([
       Receipt.aggregate([{ $match: base }, sumStage]),
       Receipt.aggregate([{ $match: { ...base, date: today } }, sumStage]),
       Receipt.aggregate([{ $match: { ...base, date: monthPrefix } }, sumStage]),
       Receipt.aggregate([{ $match: rangeFilter }, sumStage]),
+      Receipt.aggregate([
+        { $match: rangeFilter },
+        {
+          $group: {
+            _id: "$date",
+            trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+            receipts: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: -1 } },
+      ]),
       Receipt.find(rangeFilter)
         .sort({ date: -1, createdAt: -1 })
         .skip((page - 1) * pageSize)
@@ -141,6 +156,12 @@ export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
     };
   };
 
+  const days = daysAgg.map((d: any) => ({
+    date: d._id as string,
+    trips: round(d.trips),
+    receipts: d.receipts as number,
+  }));
+
   return new ApiResponse(200, "Bus trips retrieved successfully", {
     bus: bus.toJSON(),
     summary: {
@@ -149,6 +170,9 @@ export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
       allTime: pick(allAgg),
       range: pick(rangeAgg),
     },
+    minTripsPerDay: MIN_TRIPS_PER_DAY,
+    days,
+    lowTripDays: days.filter((d) => d.trips < MIN_TRIPS_PER_DAY).length,
     receipts: receipts.map((r) => r.toJSON()),
     pagination: PaginatedResponse.buildPagination(page, pageSize, totalItems),
   });
