@@ -4,12 +4,14 @@ import {
   createBusService,
   getBusesService,
   getBusService,
+  getBusTripsService,
   updateBusService,
 } from "../services/bus.service";
 import {
   ICreateBusRequest,
   IUpdateBusRequest,
   IBusesQuery,
+  IBusTripsQuery,
 } from "../interfaces/bus.interface";
 
 export const createBus = async (
@@ -48,6 +50,22 @@ export const getBus = async (
 ) => {
   try {
     const result = await getBusService(req.params.id);
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBusTrips = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBusTripsService(
+      req.params.id,
+      req.query as IBusTripsQuery,
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);

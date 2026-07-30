@@ -7,12 +7,14 @@ import {
   createBusValidation,
   updateBusValidation,
   getBusValidation,
+  busTripsValidation,
   listBusesValidation,
 } from "../validations/bus.validation";
 import {
   createBus,
   getBuses,
   getBus,
+  getBusTrips,
   updateBus,
 } from "../controllers/bus.controller";
 
@@ -30,6 +32,8 @@ router.post(
   createBusValidation(),
   createBus,
 );
+// static-ish path before the bare param path
+router.get("/:id/trips", busTripsValidation(), getBusTrips);
 router.get("/:id", getBusValidation(), getBus);
 router.patch(
   "/:id",

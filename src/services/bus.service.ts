@@ -2,10 +2,13 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Bus from "../models/Bus";
+import Receipt from "../models/Receipt";
+import { dayString } from "../helpers/day";
 import {
   ICreateBusRequest,
   IUpdateBusRequest,
   IBusesQuery,
+  IBusTripsQuery,
 } from "../interfaces/bus.interface";
 
 // "a37" / "A  37" / "A37" all normalize to "A 37" so the registry
@@ -77,6 +80,78 @@ export const getBusService = async (id: string) => {
   const bus = await Bus.findById(id);
   if (!bus) throw new ApiError(404, "Bus not found");
   return new ApiResponse(200, "Bus retrieved successfully", bus.toJSON());
+};
+
+// GET /api/buses/:id/trips: one bus's whole trip story. Every generated
+// receipt for the bus IS a trip record, so the summaries and the table
+// both come straight from receipts. Voided receipts never count.
+export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
+  const bus = await Bus.findById(id);
+  if (!bus) throw new ApiError(404, "Bus not found");
+
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
+
+  const base = { bus: bus._id, status: { $ne: "void" } };
+  const rangeFilter: Record<string, any> = { ...base };
+  if (query.from || query.to) {
+    rangeFilter.date = {};
+    if (query.from) rangeFilter.date.$gte = query.from;
+    if (query.to) rangeFilter.date.$lte = query.to;
+  }
+
+  const today = dayString();
+  const monthPrefix = new RegExp(`^${today.slice(0, 7)}-`);
+
+  const sumStage = {
+    $group: {
+      _id: null,
+      trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+      receipts: { $sum: 1 },
+      expected: { $sum: { $toDouble: "$expectedAmount" } },
+      collected: { $sum: { $toDouble: { $ifNull: ["$amountPaid", "0"] } } },
+    },
+  };
+
+  const [allAgg, todayAgg, monthAgg, rangeAgg, receipts, totalItems] =
+    await Promise.all([
+      Receipt.aggregate([{ $match: base }, sumStage]),
+      Receipt.aggregate([{ $match: { ...base, date: today } }, sumStage]),
+      Receipt.aggregate([{ $match: { ...base, date: monthPrefix } }, sumStage]),
+      Receipt.aggregate([{ $match: rangeFilter }, sumStage]),
+      Receipt.find(rangeFilter)
+        .sort({ date: -1, createdAt: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .select(
+          "billId ticketId date expectedTrips batteryName expectedAmount amountPaid status createdAt issuedBy",
+        )
+        .populate("issuedBy", "firstName lastName"),
+      Receipt.countDocuments(rangeFilter),
+    ]);
+
+  const round = (n: number) => Math.round(n * 2) / 2;
+  const pick = (agg: any[]) => {
+    const row = agg[0] || { trips: 0, receipts: 0, expected: 0, collected: 0 };
+    return {
+      trips: round(row.trips),
+      receipts: row.receipts,
+      expectedAmount: String(row.expected),
+      collectedAmount: String(row.collected),
+    };
+  };
+
+  return new ApiResponse(200, "Bus trips retrieved successfully", {
+    bus: bus.toJSON(),
+    summary: {
+      today: pick(todayAgg),
+      thisMonth: pick(monthAgg),
+      allTime: pick(allAgg),
+      range: pick(rangeAgg),
+    },
+    receipts: receipts.map((r) => r.toJSON()),
+    pagination: PaginatedResponse.buildPagination(page, pageSize, totalItems),
+  });
 };
 
 // PATCH /api/buses/:id

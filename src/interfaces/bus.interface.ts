@@ -39,3 +39,11 @@ export interface IBusesQuery {
   isActive?: string;
   search?: string;
 }
+
+// one bus's trip history, straight from its generated receipts
+export interface IBusTripsQuery {
+  page?: number;
+  pageSize?: number;
+  from?: string; // YYYY-MM-DD, inclusive
+  to?: string; // YYYY-MM-DD, inclusive
+}
