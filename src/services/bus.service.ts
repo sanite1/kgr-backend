@@ -8,7 +8,9 @@ import {
   ICreateBusRequest,
   IUpdateBusRequest,
   IBusesQuery,
+  IBusPerformanceQuery,
   IBusTripsQuery,
+  PerformanceBand,
 } from "../interfaces/bus.interface";
 
 // "a37" / "A  37" / "A37" all normalize to "A 37" so the registry
@@ -80,6 +82,102 @@ export const getBusService = async (id: string) => {
   const bus = await Bus.findById(id);
   if (!bus) throw new ApiError(404, "Bus not found");
   return new ApiResponse(200, "Bus retrieved successfully", bus.toJSON());
+};
+
+// GET /api/buses/performance: every bus judged against the daily trip
+// minimum for a period. The measure is average trips per WORKING day
+// (days the bus took a receipt), so a bus parked for repairs is not
+// unfairly painted red; buses that never worked get their own band.
+export const getBusPerformanceService = async (query: IBusPerformanceQuery) => {
+  const MIN_TRIPS_PER_DAY = 3;
+  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
+
+  const busFilter: Record<string, any> = {};
+  if (query.isActive === "true") busFilter.isActive = true;
+  if (query.isActive === "false") busFilter.isActive = false;
+  if (query.search) {
+    const pattern = new RegExp(
+      query.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      "i",
+    );
+    busFilter.$or = [{ number: pattern }, { driverName: pattern }];
+  }
+
+  const receiptMatch: Record<string, any> = { status: { $ne: "void" } };
+  if (query.from || query.to) {
+    receiptMatch.date = {};
+    if (query.from) receiptMatch.date.$gte = query.from;
+    if (query.to) receiptMatch.date.$lte = query.to;
+  }
+
+  const [buses, agg] = await Promise.all([
+    Bus.find(busFilter).sort({ number: 1 }),
+    Receipt.aggregate([
+      { $match: receiptMatch },
+      {
+        $group: {
+          _id: "$bus",
+          trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+          days: { $addToSet: "$date" },
+        },
+      },
+    ]),
+  ]);
+
+  const perf = new Map<string, { trips: number; days: number }>(
+    agg.map((a: any) => [
+      String(a._id),
+      { trips: a.trips, days: (a.days ?? []).length },
+    ]),
+  );
+
+  const round = (n: number) => Math.round(n * 2) / 2;
+  const rows = buses.map((bus) => {
+    const p = perf.get(String(bus._id));
+    const trips = round(p?.trips ?? 0);
+    const daysWorked = p?.days ?? 0;
+    const avg = daysWorked > 0 ? trips / daysWorked : 0;
+    const band: PerformanceBand =
+      daysWorked === 0
+        ? "idle"
+        : avg < MIN_TRIPS_PER_DAY
+          ? "under"
+          : avg === MIN_TRIPS_PER_DAY
+            ? "average"
+            : "good";
+    return {
+      ...bus.toJSON(),
+      trips,
+      daysWorked,
+      avgTripsPerDay: Math.round(avg * 100) / 100,
+      band,
+    };
+  });
+
+  const summary = {
+    minTripsPerDay: MIN_TRIPS_PER_DAY,
+    fleetTrips: round(rows.reduce((sum, r) => sum + r.trips, 0)),
+    busesWorked: rows.filter((r) => r.daysWorked > 0).length,
+    good: rows.filter((r) => r.band === "good").length,
+    average: rows.filter((r) => r.band === "average").length,
+    under: rows.filter((r) => r.band === "under").length,
+    idle: rows.filter((r) => r.band === "idle").length,
+  };
+
+  const band = query.band && query.band !== "all" ? query.band : null;
+  const filtered = band ? rows.filter((r) => r.band === band) : rows;
+  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  return new ApiResponse(200, "Fleet performance retrieved successfully", {
+    summary,
+    buses: paged,
+    pagination: PaginatedResponse.buildPagination(
+      page,
+      pageSize,
+      filtered.length,
+    ),
+  });
 };
 
 // GET /api/buses/:id/trips: one bus's whole trip story. Every generated

@@ -4,6 +4,7 @@ import {
   createBusService,
   getBusesService,
   getBusService,
+  getBusPerformanceService,
   getBusTripsService,
   updateBusService,
 } from "../services/bus.service";
@@ -11,6 +12,7 @@ import {
   ICreateBusRequest,
   IUpdateBusRequest,
   IBusesQuery,
+  IBusPerformanceQuery,
   IBusTripsQuery,
 } from "../interfaces/bus.interface";
 
@@ -50,6 +52,21 @@ export const getBus = async (
 ) => {
   try {
     const result = await getBusService(req.params.id);
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBusPerformance = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBusPerformanceService(
+      req.query as IBusPerformanceQuery,
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);

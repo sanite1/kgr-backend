@@ -39,6 +39,23 @@ export const updateBusValidation = () =>
 export const getBusValidation = () =>
   validate({ params: idParam }, { context: true }, { abortEarly: false });
 
+export const busPerformanceValidation = () =>
+  validate(
+    {
+      query: Joi.object({
+        page: Joi.number().integer().min(1),
+        pageSize: Joi.number().integer().min(1).max(100),
+        isActive: Joi.string().valid("true", "false"),
+        search: Joi.string().max(100).allow(""),
+        from: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+        to: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+        band: Joi.string().valid("all", "good", "average", "under", "idle"),
+      }),
+    },
+    { context: true },
+    { abortEarly: false },
+  );
+
 export const busTripsValidation = () =>
   validate(
     {
