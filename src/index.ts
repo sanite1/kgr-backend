@@ -79,6 +79,7 @@ import purchaseRoutes from "./routes/purchase.routes";
 import checklistRoutes from "./routes/checklist.routes";
 import warehouseRoutes from "./routes/warehouse.routes";
 import priceListRoutes from "./routes/priceList.routes";
+import todoRoutes from "./routes/todo.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -175,6 +176,7 @@ app.use("/api/purchases", purchaseRoutes);
 app.use("/api/checklists", checklistRoutes);
 app.use("/api/warehouse", warehouseRoutes);
 app.use("/api/price-list", priceListRoutes);
+app.use("/api/todos", todoRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {

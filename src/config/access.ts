@@ -21,6 +21,7 @@ export const ACCESS_MODULES = [
   { key: "gate_pass", label: "Gate Pass" },
   { key: "purchases", label: "Purchases" },
   { key: "price_list", label: "Price List" },
+  { key: "todos", label: "To-Do List" },
   { key: "checklists", label: "Checklist" },
   { key: "repairs", label: "Repairs" },
   { key: "buses", label: "Buses" },
