@@ -78,6 +78,7 @@ import gatePassRoutes from "./routes/gatePass.routes";
 import purchaseRoutes from "./routes/purchase.routes";
 import checklistRoutes from "./routes/checklist.routes";
 import warehouseRoutes from "./routes/warehouse.routes";
+import priceListRoutes from "./routes/priceList.routes";
 import { createServer } from "http";
 import { initSocket } from "./config/socket";
 import { registerSocketHandlers } from "./config/socketHandler";
@@ -173,6 +174,7 @@ app.use("/api/gate-passes", gatePassRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/checklists", checklistRoutes);
 app.use("/api/warehouse", warehouseRoutes);
+app.use("/api/price-list", priceListRoutes);
 
 // 404 handler (funnels into the error pipeline)
 app.all("*", (req, _res, next) => {
