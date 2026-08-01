@@ -6,7 +6,7 @@ const batteryClosingEntrySchema = new Schema<IBatteryClosingEntry>(
     date: { type: String, required: true, index: true },
     sheet: {
       type: String,
-      enum: ["main", "muhd_kamila"],
+      enum: ["main", "muhd_kamila", "main_yard", "ubs"],
       default: "main",
       index: true,
     },
