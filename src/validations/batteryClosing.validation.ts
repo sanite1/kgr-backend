@@ -46,6 +46,20 @@ export const closingDaysValidation = () =>
     { abortEarly: false },
   );
 
+export const closingWorkedValidation = () =>
+  validate(
+    {
+      params: Joi.object({
+        id: Joi.string().hex().length(24).required(),
+      }),
+      body: Joi.object({
+        worked: Joi.boolean().required(),
+      }),
+    },
+    { context: true },
+    { abortEarly: false },
+  );
+
 export const closingEntryIdValidation = () =>
   validate(
     {

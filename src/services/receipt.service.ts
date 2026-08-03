@@ -8,6 +8,7 @@ import Bus from "../models/Bus";
 import Battery from "../models/Battery";
 import { findCurrentTripPrice } from "./tripPrice.service";
 import { nextSequence } from "../helpers/sequence";
+import { markClosingWorkedFromReceipt } from "./batteryClosing.service";
 import { dayString, lastNDays } from "../helpers/day";
 import { MANAGERS } from "../config/roles";
 import { UserRole } from "../interfaces/helper.interface";
@@ -89,6 +90,15 @@ export const createReceiptService = async (
     checkedInAt: payload.checkIn ? new Date() : undefined,
     checkedInBy: payload.checkIn ? issuedBy : undefined,
   });
+
+  // the pack on this receipt has gone out: tick it on every closing
+  // sheet that prepared it. Never allowed to break receipt issuing.
+  markClosingWorkedFromReceipt(
+    receipt.batteryName,
+    date,
+    billId,
+    bus.number,
+  ).catch(() => {});
 
   return new ApiResponse(201, "Receipt issued successfully", receipt.toJSON());
 };

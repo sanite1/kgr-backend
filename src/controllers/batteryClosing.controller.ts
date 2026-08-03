@@ -5,6 +5,7 @@ import {
   getClosingEntriesService,
   getClosingDaysService,
   deleteClosingEntryService,
+  markClosingWorkedService,
 } from "../services/batteryClosing.service";
 import {
   ICreateClosingEntry,
@@ -54,6 +55,26 @@ export const makeClosingControllers = (sheet: ClosingSheetKey) => ({
       const result = await getClosingDaysService(
         req.query as IClosingDaysQuery,
         sheet,
+      );
+      sendResponse(res, result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  markClosingWorked: async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) => {
+    try {
+      const result = await markClosingWorkedService(
+        req.params.id,
+        !!(req.body as { worked: boolean }).worked,
+        {
+          id: String(req.user?._id),
+          role: String(req.user?.role),
+        },
       );
       sendResponse(res, result);
     } catch (error) {

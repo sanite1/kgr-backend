@@ -15,6 +15,9 @@ export interface IBatteryClosingEntry extends Document {
   location: BatteryLocation;
   trips: number; // trips this pack did today
   tripsAuto: boolean; // true when derived from receipts and swaps
+  worked: boolean; // the pack actually went out after being prepared
+  workedAt?: Date;
+  workedNote?: string; // "Receipt #123 on A 37" or "Marked by NAME"
   addedBy: Types.ObjectId;
   addedByName: string; // snapshot
   createdAt?: Date;

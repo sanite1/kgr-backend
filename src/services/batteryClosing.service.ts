@@ -17,6 +17,77 @@ import {
 const sheetFilter = (sheet: ClosingSheetKey) =>
   sheet === "main" ? { sheet: { $in: ["main", null] } } : { sheet };
 
+// battery names are typed by hand: "SUB 16" and "sub16" are the same
+// pack, so matching ignores case, spaces and punctuation
+const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+// how many days back a receipt reaches to tick a prepared battery: the
+// sheet is written the evening before, so a short window is enough and
+// ancient rows stay untouched
+const WORKED_LOOKBACK_DAYS = 3;
+
+// Called when a receipt is generated: the battery on the receipt has
+// gone out, so every recent unworked entry for that pack, on EVERY
+// sheet, gets its tick. Fire-and-forget from the receipt flow.
+export const markClosingWorkedFromReceipt = async (
+  batteryName: string,
+  receiptDay: string,
+  billId: number,
+  busNumber: string,
+): Promise<void> => {
+  const target = canon(batteryName);
+  if (!target) return;
+
+  const since = new Date(`${receiptDay}T12:00:00Z`);
+  since.setDate(since.getDate() - WORKED_LOOKBACK_DAYS);
+  const sinceDay = since.toISOString().slice(0, 10);
+
+  const candidates = await BatteryClosingEntry.find({
+    worked: { $ne: true },
+    date: { $gte: sinceDay, $lte: receiptDay },
+  });
+  const matched = candidates.filter((e) => canon(e.batteryName) === target);
+  if (matched.length === 0) return;
+
+  await BatteryClosingEntry.updateMany(
+    { _id: { $in: matched.map((e) => e._id) } },
+    {
+      $set: {
+        worked: true,
+        workedAt: new Date(),
+        workedNote: `Receipt #${billId} on ${busNumber}`,
+      },
+    },
+  );
+};
+
+// POST /api/battery-closing/:id/worked: the human tick, for the packs
+// the system did not catch (or to undo a slip)
+export const markClosingWorkedService = async (
+  id: string,
+  worked: boolean,
+  requester: { id: string; role: string },
+) => {
+  const entry = await BatteryClosingEntry.findById(id);
+  if (!entry) throw new ApiError(404, "Entry not found");
+
+  const user = await User.findById(requester.id);
+  const name = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+
+  entry.worked = worked;
+  entry.workedAt = worked ? new Date() : undefined;
+  entry.workedNote = worked ? `Marked by ${name}` : "";
+  await entry.save();
+
+  return new ApiResponse(
+    200,
+    worked
+      ? `${entry.batteryName} marked as worked`
+      : `${entry.batteryName} marked as not worked yet`,
+    entry.toJSON(),
+  );
+};
+
 // POST /api/battery-closing: add one battery to today's closing sheet
 export const createClosingEntryService = async (
   payload: ICreateClosingEntry,
@@ -81,9 +152,11 @@ export const getClosingEntriesService = async (
   for (const loc of BATTERY_LOCATIONS) byLocation[loc.value] = 0;
   let fullyCharged = 0;
   let totalTrips = 0;
+  let worked = 0;
   for (const e of entries) {
     byLocation[e.location] = (byLocation[e.location] || 0) + 1;
     if (e.percent === 100) fullyCharged += 1;
+    if (e.worked) worked += 1;
     totalTrips += e.trips || 0;
   }
 
@@ -93,6 +166,7 @@ export const getClosingEntriesService = async (
     totals: {
       count: entries.length,
       fullyCharged,
+      worked,
       totalTrips: Math.round(totalTrips * 2) / 2,
       byLocation,
     },

@@ -7,6 +7,7 @@ import {
   createClosingEntryValidation,
   listClosingEntriesValidation,
   closingDaysValidation,
+  closingWorkedValidation,
   closingEntryIdValidation,
 } from "../validations/batteryClosing.validation";
 import { makeClosingControllers } from "../controllers/batteryClosing.controller";
@@ -15,6 +16,7 @@ const {
   createClosingEntry,
   getClosingEntries,
   getClosingDays,
+  markClosingWorked,
   deleteClosingEntry,
 } = makeClosingControllers("main");
 
@@ -31,6 +33,7 @@ router.get(
 );
 router.get("/", listClosingEntriesValidation(), getClosingEntries);
 router.post("/", createClosingEntryValidation(), createClosingEntry);
+router.post("/:id/worked", closingWorkedValidation(), markClosingWorked);
 router.delete("/:id", closingEntryIdValidation(), deleteClosingEntry);
 
 export default router;
