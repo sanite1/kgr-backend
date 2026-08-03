@@ -4,6 +4,7 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import User from "../models/User";
+import { isSuperAdminEmail } from "../config/roles";
 import Receipt from "../models/Receipt";
 import Payment from "../models/Payment";
 import PartRequest from "../models/PartRequest";
@@ -53,7 +54,7 @@ export const createUserService = async (
     email: payload.email,
     password: await bcrypt.hash(password, 10),
     role: payload.role || "staff",
-    access: payload.role === "admin" ? undefined : payload.access,
+    access: payload.access,
     createdBy,
   });
 
@@ -114,6 +115,7 @@ export const updateUserService = async (
   id: string,
   payload: IUpdateUserRequest,
   actingUserId: string,
+  actingEmail?: string,
 ) => {
   // an admin cannot deactivate or demote their own account
   if (
@@ -126,6 +128,24 @@ export const updateUserService = async (
   const user = await User.findById(id);
   if (!user) throw new ApiError(404, "User not found");
 
+  // the owner accounts are untouchable: only a super admin (or the
+  // account itself) may edit one, and even then the role and active
+  // status are locked
+  if (isSuperAdminEmail(user.email)) {
+    if (!isSuperAdminEmail(actingEmail) && id !== actingUserId) {
+      throw new ApiError(
+        403,
+        "Only a super admin can edit a super admin account",
+      );
+    }
+    if (payload.role && payload.role !== "admin") {
+      throw new ApiError(403, "A super admin's role cannot be changed");
+    }
+    if (payload.isActive === false) {
+      throw new ApiError(403, "A super admin account cannot be disabled");
+    }
+  }
+
   const previousRole = user.role;
   const previousActive = user.isActive;
 
@@ -134,10 +154,10 @@ export const updateUserService = async (
   if (payload.role !== undefined) user.role = payload.role;
   if (payload.isActive !== undefined) user.isActive = payload.isActive;
   if (payload.access !== undefined) {
-    // null clears the override so the role defaults apply again;
-    // admins never carry overrides, their access is always everything
+    // null clears the override so the role defaults apply again; the
+    // super admins never carry overrides, they always have everything
     user.access =
-      payload.access === null || user.role === "admin"
+      payload.access === null || isSuperAdminEmail(user.email)
         ? undefined
         : payload.access;
   }
@@ -183,6 +203,11 @@ export const deleteUserService = async (id: string, actingUserId: string) => {
 
   const user = await User.findById(id);
   if (!user) throw new ApiError(404, "User not found");
+
+  // the owner accounts can never be deleted, by anyone
+  if (isSuperAdminEmail(user.email)) {
+    throw new ApiError(403, "Super admin accounts cannot be deleted");
+  }
 
   if (await hasActivity(id)) {
     throw new ApiError(

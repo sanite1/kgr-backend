@@ -65,6 +65,7 @@ export const updateUser = async (
       req.params.id,
       req.body as IUpdateUserRequest,
       String(req.user?._id),
+      req.user?.email,
     );
     sendResponse(res, result);
   } catch (error) {

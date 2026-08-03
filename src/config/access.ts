@@ -1,5 +1,6 @@
 import { UserRole } from "../interfaces/helper.interface";
 import { IUser } from "../interfaces/user.interface";
+import { isSuperAdminEmail } from "./roles";
 
 // Every toggleable console module. The dashboard is always available.
 // Keys are stored on users and checked by requireAccess, so treat them
@@ -67,12 +68,14 @@ export const ROLE_DEFAULT_ACCESS: Record<UserRole, ModuleKey[]> = {
 };
 
 // A user's actual module list: their per-user override when set,
-// otherwise the role defaults. Admins always have everything.
+// otherwise the role defaults. Only the super admins are untouchable:
+// they always have everything; normal admins can be narrowed.
 export const effectiveAccess = (user: {
   role: UserRole;
+  email?: string;
   access?: IUser["access"];
 }): ModuleKey[] => {
-  if (user.role === "admin") return ROLE_DEFAULT_ACCESS.admin;
+  if (isSuperAdminEmail(user.email)) return ROLE_DEFAULT_ACCESS.admin;
   if (Array.isArray(user.access)) {
     return user.access.filter((k): k is ModuleKey =>
       (MODULE_KEYS as string[]).includes(k),
