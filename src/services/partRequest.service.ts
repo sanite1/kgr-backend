@@ -36,8 +36,14 @@ export const createPartRequestService = async (
   payload: ICreatePartRequest,
   requestedBy: string,
 ) => {
-  const bus = await Bus.findById(payload.busId);
-  if (!bus) throw new ApiError(404, "Bus not found");
+  // a request is raised for a registered bus OR anything typed
+  // (generator, office, workshop...)
+  const bus = payload.busId ? await Bus.findById(payload.busId) : null;
+  if (payload.busId && !bus) throw new ApiError(404, "Bus not found");
+  const targetName = bus ? bus.number : (payload.target ?? "").trim();
+  if (!targetName) {
+    throw new ApiError(400, "Pick a bus or type what the request is for");
+  }
 
   const item = await InventoryItem.findById(payload.itemId);
   if (!item) throw new ApiError(404, "Item not found");
@@ -46,11 +52,11 @@ export const createPartRequestService = async (
   }
 
   // the old system's "Expiry | Next Request" gate: an earlier request for
-  // this bus+item may have locked re-requests until a date
+  // this target+item may have locked re-requests until a date
   if (!payload.allowOverride) {
     const today = dayString();
     const blocking = await PartRequest.findOne({
-      bus: bus._id,
+      ...(bus ? { bus: bus._id } : { busNumber: targetName }),
       item: item._id,
       status: { $in: ["pending", "approved"] },
       nextRequestDate: { $gt: today },
@@ -58,7 +64,7 @@ export const createPartRequestService = async (
     if (blocking) {
       throw new ApiError(
         409,
-        `Request #${blocking.requestId} locks "${item.name}" for ${bus.number} until ${blocking.nextRequestDate}`,
+        `Request #${blocking.requestId} locks "${item.name}" for ${targetName} until ${blocking.nextRequestDate}`,
       );
     }
   }
@@ -68,8 +74,8 @@ export const createPartRequestService = async (
 
   const request = await PartRequest.create({
     requestId,
-    bus: bus._id,
-    busNumber: bus.number,
+    bus: bus?._id,
+    busNumber: targetName,
     item: item._id,
     itemName: item.name,
     quantity: payload.quantity,
@@ -181,7 +187,7 @@ export const approvePartRequestService = async (
     amount: request.amount,
     categoryName: ITEM_CATEGORY_FOLDER[item.category] || "Spare Parts",
     description: `Request #${request.requestId}: ${request.itemName} x ${request.quantity}`,
-    busId: String(request.bus),
+    busId: request.bus ? String(request.bus) : undefined,
     busNumber: request.busNumber,
     recordedBy: decidedBy,
   });

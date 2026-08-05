@@ -9,13 +9,19 @@ export const createPartRequestValidation = () =>
   validate(
     {
       body: Joi.object({
-        busId: Joi.string().hex().length(24).required(),
+        busId: Joi.string().hex().length(24),
+        target: Joi.string().min(1).max(60),
         itemId: Joi.string().hex().length(24).required(),
         quantity: Joi.number().integer().min(1).max(1000).required(),
         narration: Joi.string().max(2000).allow(""),
         nextRequestDate: Joi.string().pattern(dayPattern),
         allowOverride: Joi.boolean(),
-      }),
+      })
+        .xor("busId", "target")
+        .messages({
+          "object.missing": "pick a bus or type what the request is for",
+          "object.xor": "pick a bus or type a target, not both",
+        }),
     },
     { context: true },
     { abortEarly: false },

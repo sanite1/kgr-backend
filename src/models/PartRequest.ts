@@ -4,10 +4,10 @@ import { IPartRequest } from "../interfaces/partRequest.interface";
 const partRequestSchema = new Schema<IPartRequest>(
   {
     requestId: { type: Number, required: true, unique: true, index: true },
+    // absent when the request is for a typed target, not a bus
     bus: {
       type: Schema.Types.ObjectId,
       ref: "Bus",
-      required: true,
       index: true,
     },
     busNumber: { type: String, required: true, index: true },
