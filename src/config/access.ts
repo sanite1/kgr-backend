@@ -16,6 +16,7 @@ export const ACCESS_MODULES = [
   { key: "requests", label: "Requests" },
   { key: "batteries", label: "Batteries" },
   { key: "battery_form", label: "Battery Form" },
+  { key: "battery_attendance", label: "Battery Attendance" },
   { key: "battery_closing", label: "Battery Closing" },
   { key: "house_closing", label: "Muh'd & Kamila House" },
   { key: "main_yard_closing", label: "Main Yard" },
@@ -44,6 +45,7 @@ export const MODULE_KEYS: ModuleKey[] = ACCESS_MODULES.map((m) => m.key);
 const EVERYONE: ModuleKey[] = [
   "requests",
   "battery_form",
+  "battery_attendance",
   "battery_closing",
   "house_closing",
   "main_yard_closing",
