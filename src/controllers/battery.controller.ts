@@ -11,6 +11,7 @@ import {
   collectBatteryService,
   setBatteryStatusService,
   getBatteryMovementsService,
+  getBatteryDetailsService,
 } from "../services/battery.service";
 import {
   ICreateBattery,
@@ -155,6 +156,22 @@ export const setBatteryStatus = async (
       req.params.id,
       req.body as ISetBatteryStatus,
       String(req.user?._id),
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBatteryDetails = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBatteryDetailsService(
+      req.params.id,
+      String(req.user?.role),
     );
     sendResponse(res, result);
   } catch (error) {

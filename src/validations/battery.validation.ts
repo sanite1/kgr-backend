@@ -109,6 +109,9 @@ export const listBatteriesValidation = () =>
     { abortEarly: false },
   );
 
+export const batteryDetailsValidation = () =>
+  validate({ params: idParam }, { context: true }, { abortEarly: false });
+
 export const batteryMovementsValidation = () =>
   validate(
     {

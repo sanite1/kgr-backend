@@ -10,6 +10,7 @@ import {
   collectBatteryValidation,
   setBatteryStatusValidation,
   listBatteriesValidation,
+  batteryDetailsValidation,
   snoozeBatteryValidation,
   batteryMovementsValidation,
 } from "../validations/battery.validation";
@@ -24,6 +25,7 @@ import {
   collectBattery,
   setBatteryStatus,
   getBatteryMovements,
+  getBatteryDetails,
 } from "../controllers/battery.controller";
 
 const router = Router();
@@ -76,6 +78,7 @@ router.post(
   setBatteryStatusValidation(),
   setBatteryStatus,
 );
+router.get("/:id/details", batteryDetailsValidation(), getBatteryDetails);
 router.get("/:id/movements", batteryMovementsValidation(), getBatteryMovements);
 
 export default router;

@@ -3,6 +3,9 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Battery from "../models/Battery";
 import BatteryMovement from "../models/BatteryMovement";
+import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
+import BatteryClosingEntry from "../models/BatteryClosingEntry";
+import BatterySwap from "../models/BatterySwap";
 import Bus from "../models/Bus";
 import Receipt from "../models/Receipt";
 import User from "../models/User";
@@ -462,4 +465,115 @@ export const getBatteryMovementsService = async (
     pageSize,
     "Battery movements retrieved successfully",
   );
+};
+
+// GET /api/batteries/:id/details: everything the console knows about
+// one pack on one page - its trips (receipts naming it), attendance
+// history, closing sheet appearances and swaps. Typed names elsewhere
+// are matched forgivingly: "SUB 16" and "sub16" are the same pack.
+export const getBatteryDetailsService = async (id: string, role: string) => {
+  const battery = await Battery.findById(id);
+  if (!battery) throw new ApiError(404, "Battery not found");
+
+  const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // "SUB16" becomes /^S[^a-z0-9]*U[^a-z0-9]*B[^a-z0-9]*1[^a-z0-9]*6$/i
+  const namePattern = new RegExp(
+    `^${canon(battery.code).split("").join("[^A-Za-z0-9]*")}$`,
+    "i",
+  );
+
+  const today = dayString();
+  const monthPattern = new RegExp(`^${today.slice(0, 7)}-`);
+  const receiptBase = { batteryName: namePattern, status: { $ne: "void" } };
+  const sumStage = {
+    $group: {
+      _id: null,
+      trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+      receipts: { $sum: 1 },
+    },
+  };
+
+  // attendance is role-scoped like the attendance page: non-admins see
+  // only their own register's marks
+  const attendanceFilter: Record<string, any> = { battery: battery._id };
+  if (role !== "admin") {
+    const own =
+      role === "manager"
+        ? "manager"
+        : role === "storekeeper"
+          ? "storekeeper"
+          : "staff";
+    Object.assign(
+      attendanceFilter,
+      own === "staff"
+        ? { register: { $in: ["staff", null] } }
+        : { register: own },
+    );
+  }
+
+  const closingSince = new Date(`${today}T12:00:00Z`);
+  closingSince.setDate(closingSince.getDate() - 30);
+  const closingSinceDay = closingSince.toISOString().slice(0, 10);
+
+  const [
+    allAgg,
+    todayAgg,
+    monthAgg,
+    recentReceipts,
+    attendance,
+    closings,
+    swaps,
+  ] = await Promise.all([
+    Receipt.aggregate([{ $match: receiptBase }, sumStage]),
+    Receipt.aggregate([{ $match: { ...receiptBase, date: today } }, sumStage]),
+    Receipt.aggregate([
+      { $match: { ...receiptBase, date: monthPattern } },
+      sumStage,
+    ]),
+    Receipt.find(receiptBase)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(15)
+      .select("billId date busNumber expectedTrips createdAt"),
+    BatteryAttendanceEntry.find(attendanceFilter)
+      .sort({ date: -1, createdAt: -1 })
+      .limit(30),
+    BatteryClosingEntry.find({ date: { $gte: closingSinceDay } }).sort({
+      date: -1,
+      createdAt: -1,
+    }),
+    BatterySwap.find({
+      $or: [{ initialBattery: battery._id }, { suppliedBattery: battery._id }],
+    })
+      .sort({ createdAt: -1 })
+      .limit(10),
+  ]);
+
+  const round = (n: number) => Math.round(n * 2) / 2;
+  const pick = (agg: any[]) => {
+    const row = agg[0] || { trips: 0, receipts: 0 };
+    return { trips: round(row.trips), receipts: row.receipts };
+  };
+
+  const matchedClosings = closings
+    .filter((e) => canon(e.batteryName) === canon(battery.code))
+    .slice(0, 15);
+
+  return new ApiResponse(200, "Battery details retrieved successfully", {
+    battery: battery.toJSON(),
+    trips: {
+      today: pick(todayAgg),
+      thisMonth: pick(monthAgg),
+      allTime: pick(allAgg),
+    },
+    receipts: recentReceipts.map((r) => r.toJSON()),
+    attendance: attendance.map((a) => a.toJSON()),
+    closings: matchedClosings.map((e) => e.toJSON()),
+    swaps: swaps.map((s) => ({
+      ...s.toJSON(),
+      role:
+        String(s.suppliedBattery) === String(battery._id)
+          ? "went_on"
+          : "came_off",
+    })),
+  });
 };
