@@ -3,6 +3,7 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Battery from "../models/Battery";
 import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
+import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
 import {
@@ -18,10 +19,35 @@ import {
 export const getAttendanceService = async (query: IAttendanceQuery) => {
   const date = query.date || dayString();
 
-  const [batteries, marks] = await Promise.all([
+  // the closing sheets say where each pack was last put to bed; that
+  // sighting is offered to the caller as a suggestion. Typed names are
+  // matched forgivingly: "SUB 16" and "sub16" are the same pack.
+  const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const since = new Date(`${date}T12:00:00Z`);
+  since.setDate(since.getDate() - 3);
+  const sinceDay = since.toISOString().slice(0, 10);
+
+  const [batteries, marks, closings] = await Promise.all([
     Battery.find().sort({ code: 1 }),
     BatteryAttendanceEntry.find({ date, session: query.session }),
+    BatteryClosingEntry.find({ date: { $gte: sinceDay, $lte: date } }).sort({
+      date: 1,
+      createdAt: 1,
+    }),
   ]);
+
+  // ascending sort means the last write per pack wins
+  const closingByCanon = new Map<
+    string,
+    { location: string; date: string; sheet: string }
+  >();
+  for (const e of closings) {
+    closingByCanon.set(canon(e.batteryName), {
+      location: e.location,
+      date: e.date,
+      sheet: e.sheet ?? "main",
+    });
+  }
 
   const markByBattery = new Map(marks.map((m) => [String(m.battery), m]));
 
@@ -32,6 +58,7 @@ export const getAttendanceService = async (query: IAttendanceQuery) => {
       batteryCode: battery.code,
       batteryStatus: battery.status,
       busNumber: battery.busNumber || "",
+      closing: closingByCanon.get(canon(battery.code)) ?? null,
       mark: mark ? mark.toJSON() : null,
     };
   });
