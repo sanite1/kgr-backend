@@ -9,14 +9,47 @@ import { dayString } from "../helpers/day";
 import {
   IMarkAttendance,
   IAttendanceQuery,
+  IAttendanceCompareQuery,
   IAttendanceDaysQuery,
+  AttendanceRegister,
 } from "../interfaces/batteryAttendance.interface";
 
-// GET /api/battery-attendance?session=&date=: the whole registered
-// fleet with each pack's verdict for that session. Packs nobody marked
-// come back as "unmarked" - absence must be visible, that is the point
-// of taking attendance.
-export const getAttendanceService = async (query: IAttendanceQuery) => {
+const REGISTERS: AttendanceRegister[] = ["manager", "staff", "storekeeper"];
+
+// which of the three registers a role belongs to; admin owns none and
+// may write any
+const roleRegister = (role: string): AttendanceRegister | null => {
+  if (role === "admin") return null;
+  if (role === "manager") return "manager";
+  if (role === "storekeeper") return "storekeeper";
+  return "staff";
+};
+
+// entries from before the split carry no register; they belong to staff
+const registerFilter = (register: AttendanceRegister) =>
+  register === "staff" ? { register: { $in: ["staff", null] } } : { register };
+
+const assertRegisterAllowed = (
+  register: AttendanceRegister,
+  role: string,
+): void => {
+  if (role === "admin") return;
+  if (roleRegister(role) !== register) {
+    throw new ApiError(
+      403,
+      `Your account belongs to the ${roleRegister(role)} attendance, not the ${register} one`,
+    );
+  }
+};
+
+// GET /api/battery-attendance?session=&register=&date=: one register's
+// view of the whole fleet. Unmarked packs stay visible - absence must
+// be seen, that is the point of taking attendance.
+export const getAttendanceService = async (
+  query: IAttendanceQuery,
+  role: string,
+) => {
+  assertRegisterAllowed(query.register, role);
   const date = query.date || dayString();
 
   // the closing sheets say where each pack was last put to bed; that
@@ -29,7 +62,11 @@ export const getAttendanceService = async (query: IAttendanceQuery) => {
 
   const [batteries, marks, closings] = await Promise.all([
     Battery.find().sort({ code: 1 }),
-    BatteryAttendanceEntry.find({ date, session: query.session }),
+    BatteryAttendanceEntry.find({
+      date,
+      session: query.session,
+      ...registerFilter(query.register),
+    }),
     BatteryClosingEntry.find({ date: { $gte: sinceDay, $lte: date } }).sort({
       date: 1,
       createdAt: 1,
@@ -69,6 +106,7 @@ export const getAttendanceService = async (query: IAttendanceQuery) => {
   return new ApiResponse(200, "Attendance retrieved successfully", {
     date,
     session: query.session,
+    register: query.register,
     rows,
     totals: {
       fleet: batteries.length,
@@ -79,12 +117,14 @@ export const getAttendanceService = async (query: IAttendanceQuery) => {
   });
 };
 
-// POST /api/battery-attendance: one verdict for one pack. Re-marking
-// the same pack in the same session overwrites, so slips are fixable.
+// POST /api/battery-attendance: one verdict for one pack on one
+// register. Re-marking the same pack overwrites, so slips are fixable.
 export const markAttendanceService = async (
   payload: IMarkAttendance,
-  requester: { id: string },
+  requester: { id: string; role: string },
 ) => {
+  assertRegisterAllowed(payload.register, requester.role);
+
   const battery = await Battery.findById(payload.batteryId);
   if (!battery) throw new ApiError(404, "Battery not found");
 
@@ -96,7 +136,12 @@ export const markAttendanceService = async (
   const date = dayString();
 
   const entry = await BatteryAttendanceEntry.findOneAndUpdate(
-    { date, session: payload.session, battery: battery._id },
+    {
+      date,
+      session: payload.session,
+      register: payload.register,
+      battery: battery._id,
+    },
     {
       $set: {
         batteryCode: battery.code,
@@ -120,15 +165,108 @@ export const markAttendanceService = async (
   );
 };
 
-// GET /api/battery-attendance/days: past roll calls, newest first
-// (managers). One row per date and session.
-export const getAttendanceDaysService = async (query: IAttendanceDaysQuery) => {
+// GET /api/battery-attendance/compare?session=&date=: the three
+// registers laid side by side per battery (admin only, enforced at the
+// route). Matching is exact - the rows are keyed to registered packs.
+export const getAttendanceCompareService = async (
+  query: IAttendanceCompareQuery,
+) => {
+  const date = query.date || dayString();
+
+  const [batteries, marks] = await Promise.all([
+    Battery.find().sort({ code: 1 }),
+    BatteryAttendanceEntry.find({ date, session: query.session }),
+  ]);
+
+  // battery id -> register -> mark
+  const byBattery = new Map<string, Map<string, any>>();
+  for (const m of marks) {
+    const key = String(m.battery);
+    if (!byBattery.has(key)) byBattery.set(key, new Map());
+    byBattery.get(key)!.set(m.register ?? "staff", m);
+  }
+
+  const rows = batteries.map((battery) => {
+    const perRegister = byBattery.get(String(battery._id));
+    const verdicts: Record<string, any> = {};
+    for (const r of REGISTERS) {
+      const m = perRegister?.get(r);
+      verdicts[r] = m
+        ? {
+            status: m.status,
+            location: m.location,
+            lastSeen: m.lastSeen,
+            markedByName: m.markedByName,
+          }
+        : null;
+    }
+
+    const marked = REGISTERS.map((r) => verdicts[r]).filter(Boolean);
+    let status: "match" | "mismatch" | "partial" | "unmarked";
+    if (marked.length === 0) {
+      status = "unmarked";
+    } else {
+      const agree = marked.every(
+        (v) =>
+          v.status === marked[0].status &&
+          (v.status !== "seen" || v.location === marked[0].location),
+      );
+      if (!agree) status = "mismatch";
+      else status = marked.length === REGISTERS.length ? "match" : "partial";
+    }
+
+    return {
+      batteryId: String(battery._id),
+      batteryCode: battery.code,
+      busNumber: battery.busNumber || "",
+      manager: verdicts.manager,
+      staff: verdicts.staff,
+      storekeeper: verdicts.storekeeper,
+      status,
+    };
+  });
+
+  // trouble reads first: red, then incomplete, then uncalled, then green
+  const rank = { mismatch: 0, partial: 1, unmarked: 2, match: 3 } as const;
+  rows.sort(
+    (a, b) =>
+      rank[a.status] - rank[b.status] ||
+      a.batteryCode.localeCompare(b.batteryCode, undefined, { numeric: true }),
+  );
+
+  return new ApiResponse(200, "Attendance comparison retrieved successfully", {
+    date,
+    session: query.session,
+    rows,
+    totals: {
+      fleet: batteries.length,
+      matched: rows.filter((r) => r.status === "match").length,
+      mismatched: rows.filter((r) => r.status === "mismatch").length,
+      partial: rows.filter((r) => r.status === "partial").length,
+      unmarked: rows.filter((r) => r.status === "unmarked").length,
+    },
+  });
+};
+
+// GET /api/battery-attendance/days: past roll calls, newest first.
+// Admin sees every register; a manager sees only their own.
+export const getAttendanceDaysService = async (
+  query: IAttendanceDaysQuery,
+  role: string,
+) => {
   const page = Math.max(1, Number(query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize) || 20));
 
+  const own = roleRegister(role);
+  const match = own ? registerFilter(own) : {};
+
   const groupStage = {
     $group: {
-      _id: { date: "$date", session: "$session" },
+      _id: {
+        date: "$date",
+        session: "$session",
+        register: { $ifNull: ["$register", "staff"] },
+      },
       seen: { $sum: { $cond: [{ $eq: ["$status", "seen"] }, 1, 0] } },
       missing: { $sum: { $cond: [{ $eq: ["$status", "missing"] }, 1, 0] } },
     },
@@ -136,18 +274,24 @@ export const getAttendanceDaysService = async (query: IAttendanceDaysQuery) => {
 
   const [days, countRows] = await Promise.all([
     BatteryAttendanceEntry.aggregate([
+      { $match: match },
       groupStage,
-      { $sort: { "_id.date": -1, "_id.session": 1 } },
+      { $sort: { "_id.date": -1, "_id.session": 1, "_id.register": 1 } },
       { $skip: (page - 1) * pageSize },
       { $limit: pageSize },
     ]),
-    BatteryAttendanceEntry.aggregate([groupStage, { $count: "n" }]),
+    BatteryAttendanceEntry.aggregate([
+      { $match: match },
+      groupStage,
+      { $count: "n" },
+    ]),
   ]);
 
   return PaginatedResponse.build(
     days.map((d: any) => ({
       date: d._id.date,
       session: d._id.session,
+      register: d._id.register,
       seen: d.seen,
       missing: d.missing,
       marked: d.seen + d.missing,

@@ -3,12 +3,14 @@ import { sendResponse } from "../helpers/sendResponse";
 import {
   getAttendanceService,
   markAttendanceService,
+  getAttendanceCompareService,
   getAttendanceDaysService,
   clearAttendanceService,
 } from "../services/batteryAttendance.service";
 import {
   IMarkAttendance,
   IAttendanceQuery,
+  IAttendanceCompareQuery,
   IAttendanceDaysQuery,
 } from "../interfaces/batteryAttendance.interface";
 
@@ -20,6 +22,7 @@ export const getAttendance = async (
   try {
     const result = await getAttendanceService(
       req.query as unknown as IAttendanceQuery,
+      String(req.user?.role),
     );
     sendResponse(res, result);
   } catch (error) {
@@ -35,6 +38,7 @@ export const markAttendance = async (
   try {
     const result = await markAttendanceService(req.body as IMarkAttendance, {
       id: String(req.user?._id),
+      role: String(req.user?.role),
     });
     sendResponse(res, result);
   } catch (error) {
@@ -50,6 +54,22 @@ export const getAttendanceDays = async (
   try {
     const result = await getAttendanceDaysService(
       req.query as IAttendanceDaysQuery,
+      String(req.user?.role),
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAttendanceCompare = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getAttendanceCompareService(
+      req.query as unknown as IAttendanceCompareQuery,
     );
     sendResponse(res, result);
   } catch (error) {

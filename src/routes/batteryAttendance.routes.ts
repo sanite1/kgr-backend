@@ -6,12 +6,14 @@ import { requireAccess } from "../middlewares/requireAccess";
 import {
   markAttendanceValidation,
   listAttendanceValidation,
+  attendanceCompareValidation,
   attendanceDaysValidation,
   attendanceEntryIdValidation,
 } from "../validations/batteryAttendance.validation";
 import {
   getAttendance,
   markAttendance,
+  getAttendanceCompare,
   getAttendanceDays,
   clearAttendance,
 } from "../controllers/batteryAttendance.controller";
@@ -26,6 +28,13 @@ router.get(
   authorizeRoles(...MANAGERS),
   attendanceDaysValidation(),
   getAttendanceDays,
+);
+// laying the three registers side by side is the admin's view alone
+router.get(
+  "/compare",
+  authorizeRoles("admin"),
+  attendanceCompareValidation(),
+  getAttendanceCompare,
 );
 router.get("/", listAttendanceValidation(), getAttendance);
 router.post("/", markAttendanceValidation(), markAttendance);

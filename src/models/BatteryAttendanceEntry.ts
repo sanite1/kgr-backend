@@ -9,6 +9,12 @@ const batteryAttendanceEntrySchema = new Schema<IBatteryAttendanceEntry>(
       enum: ["morning", "afternoon", "night"],
       required: true,
     },
+    register: {
+      type: String,
+      enum: ["manager", "staff", "storekeeper"],
+      default: "staff",
+      index: true,
+    },
     battery: {
       type: Schema.Types.ObjectId,
       ref: "Battery",
@@ -35,9 +41,10 @@ const batteryAttendanceEntrySchema = new Schema<IBatteryAttendanceEntry>(
   },
 );
 
-// one verdict per battery per session per day; re-marking overwrites
+// one verdict per battery per session per register per day;
+// re-marking overwrites
 batteryAttendanceEntrySchema.index(
-  { date: 1, session: 1, battery: 1 },
+  { date: 1, session: 1, register: 1, battery: 1 },
   { unique: true },
 );
 
@@ -45,4 +52,10 @@ const BatteryAttendanceEntry = model<IBatteryAttendanceEntry>(
   "BatteryAttendanceEntry",
   batteryAttendanceEntrySchema,
 );
+
+// the registers split an older single-register index; drop it once so
+// three sets of eyes can mark the same pack (missing index is fine)
+void BatteryAttendanceEntry.collection
+  .dropIndex("date_1_session_1_battery_1")
+  .catch(() => {});
 export default BatteryAttendanceEntry;

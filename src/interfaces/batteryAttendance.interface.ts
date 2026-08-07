@@ -8,9 +8,14 @@ import { BatteryLocation } from "./helper.interface";
 export type AttendanceSession = "morning" | "afternoon" | "night";
 export type AttendanceStatus = "seen" | "missing";
 
+// three independent registers kept by three different sets of eyes;
+// the admin compares them
+export type AttendanceRegister = "manager" | "staff" | "storekeeper";
+
 export interface IBatteryAttendanceEntry extends Document {
   date: string; // Lagos business day
   session: AttendanceSession;
+  register: AttendanceRegister;
   battery: Types.ObjectId;
   batteryCode: string; // snapshot
   status: AttendanceStatus;
@@ -25,12 +30,19 @@ export interface IBatteryAttendanceEntry extends Document {
 export interface IMarkAttendance {
   batteryId: string;
   session: AttendanceSession;
+  register: AttendanceRegister;
   status: AttendanceStatus;
   location?: BatteryLocation;
   lastSeen?: string;
 }
 
 export interface IAttendanceQuery {
+  session: AttendanceSession;
+  register: AttendanceRegister;
+  date?: string; // defaults to today
+}
+
+export interface IAttendanceCompareQuery {
   session: AttendanceSession;
   date?: string; // defaults to today
 }
