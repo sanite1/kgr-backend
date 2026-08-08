@@ -104,7 +104,7 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
 
 // GET /api/batteries/summary: counts per status for the board header
 export const getBatterySummaryService = async () => {
-  const [rows, receiptBatteries] = await Promise.all([
+  const [rows, receiptBatteries, activePacks, sightings] = await Promise.all([
     Battery.aggregate([
       { $match: { isActive: true } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -117,6 +117,8 @@ export const getBatterySummaryService = async () => {
       status: { $ne: "void" },
       batteryName: { $nin: ["", null] },
     }),
+    Battery.find({ isActive: true }).select("code"),
+    lastSightingsMap(),
   ]);
   const onBus = receiptBatteries.length;
 
@@ -134,10 +136,28 @@ export const getBatterySummaryService = async () => {
     total += row.count;
   }
 
+  // accountability: how much of the fleet has a human sighting on record.
+  // The sightings map only holds the last 7 days, so anything missing
+  // from it has been off every checklist and receipt for a week.
+  const today = dayString();
+  let sightedToday = 0;
+  let sightedWeek = 0;
+  for (const pack of activePacks) {
+    const seen = sightings.get(canonBattery(pack.code));
+    if (!seen) continue;
+    sightedWeek += 1;
+    if (seen.date === today) sightedToday += 1;
+  }
+
   return new ApiResponse(200, "Battery summary retrieved successfully", {
     counts,
     total,
     onBus,
+    sighted: {
+      today: sightedToday,
+      week: sightedWeek,
+      unsighted: total - sightedWeek,
+    },
   });
 };
 

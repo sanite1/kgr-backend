@@ -15,10 +15,10 @@ import {
 
 const SWAP_ID_START = Number(process.env.SWAP_ID_START) || 1;
 
-// POST /api/battery-swaps: record a swap. Which battery sits on which
-// bus is no longer kept in a registry; it comes from checklist and
-// receipt sightings. So a swap only checks what it can truly know: the
-// packs exist, they are different, and the supplied one is usable.
+// POST /api/battery-swaps: record a swap. Nobody at a bus stop can be
+// blocked by what the console believes about a pack, so every swap goes
+// through; the only refusals left are genuine input mistakes (unknown
+// bus or pack, or the same pack picked twice).
 export const createSwapService = async (
   payload: ICreateBatterySwap,
   byId: string,
@@ -43,22 +43,6 @@ export const createSwapService = async (
   if (!initial) throw new ApiError(404, "Initial battery not found");
   if (!supplied) throw new ApiError(404, "Supplied battery not found");
 
-  // ---- the supplied pack must actually be available ----
-  if (!supplied.isActive) {
-    throw new ApiError(400, `${supplied.code} is retired and cannot be used`);
-  }
-  if (supplied.status === "faulty") {
-    throw new ApiError(
-      400,
-      `${supplied.code} is marked faulty and cannot be supplied to a bus`,
-    );
-  }
-  if (supplied.status === "not_in_use") {
-    throw new ApiError(
-      400,
-      `${supplied.code} is marked not in use; change its status before supplying it`,
-    );
-  }
   const user = await User.findById(byId);
   const byName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const swapId = await nextSequence("battery_swap_id", SWAP_ID_START);
