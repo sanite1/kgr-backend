@@ -6,7 +6,7 @@ import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
-import { lastSightingsMap, canonBattery } from "../helpers/batterySighting";
+import { sightingsOnDay, canonBattery } from "../helpers/batterySighting";
 import {
   IMarkAttendance,
   IAttendanceQuery,
@@ -72,7 +72,7 @@ export const getAttendanceService = async (
       date: 1,
       createdAt: 1,
     }),
-    lastSightingsMap(),
+    sightingsOnDay(date),
   ]);
 
   // ascending sort means the last write per pack wins
@@ -178,7 +178,7 @@ export const getAttendanceCompareService = async (
   const [batteries, marks, sightings] = await Promise.all([
     Battery.find().sort({ code: 1 }),
     BatteryAttendanceEntry.find({ date, session: query.session }),
-    lastSightingsMap(),
+    sightingsOnDay(date),
   ]);
 
   // battery id -> register -> mark

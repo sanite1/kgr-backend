@@ -6,7 +6,7 @@ import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { dayString } from "../helpers/day";
 import { inBackground } from "../helpers/background";
-import { MANAGERS } from "../config/roles";
+import { MANAGERS, isNotificationMuted } from "../config/roles";
 import { UserRole } from "../interfaces/helper.interface";
 import {
   sendGatePassRequestMail,
@@ -40,7 +40,7 @@ const notifyApprovers = (pass: IGatePass): void => {
       }).limit(10);
       await Promise.all(
         approvers
-          .filter((a) => a.email)
+          .filter((a) => a.email && !isNotificationMuted(a.email))
           .map((a) =>
             sendGatePassRequestMail(a.email, {
               approverName: a.firstName,
