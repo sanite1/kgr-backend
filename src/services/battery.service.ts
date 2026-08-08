@@ -81,20 +81,56 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
     filter.code = pattern;
   }
 
-  const [batteries, totalItems, sightings] = await Promise.all([
+  const today = dayString();
+  const [batteries, totalItems, sightings, monthRows] = await Promise.all([
     Battery.find(filter)
       .sort({ code: 1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize),
     Battery.countDocuments(filter),
     lastSightingsMap(),
+    // this month's trips per typed battery name; canon-summed below so
+    // "SUB 16" and "sub16" land on the same pack
+    Receipt.aggregate([
+      {
+        $match: {
+          status: { $ne: "void" },
+          date: new RegExp(`^${today.slice(0, 7)}-`),
+          batteryName: { $nin: ["", null] },
+        },
+      },
+      {
+        $group: {
+          _id: { name: "$batteryName", date: "$date" },
+          trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+        },
+      },
+    ]),
   ]);
 
+  const tripsToday = new Map<string, number>();
+  const tripsMonth = new Map<string, number>();
+  for (const row of monthRows) {
+    const key = canonBattery(row._id.name);
+    tripsMonth.set(key, (tripsMonth.get(key) ?? 0) + row.trips);
+    if (row._id.date === today) {
+      tripsToday.set(key, (tripsToday.get(key) ?? 0) + row.trips);
+    }
+  }
+  const half = (n: number) => Math.round(n * 2) / 2;
+
   return PaginatedResponse.build(
-    batteries.map((b) => ({
-      ...b.toJSON(),
-      lastSeen: sightings.get(canonBattery(b.code)) ?? null,
-    })),
+    batteries.map((b) => {
+      const key = canonBattery(b.code);
+      return {
+        ...b.toJSON(),
+        lastSeen: sightings.get(key) ?? null,
+        trips: {
+          today: half(tripsToday.get(key) ?? 0),
+          month: half(tripsMonth.get(key) ?? 0),
+        },
+      };
+    }),
     totalItems,
     page,
     pageSize,
@@ -104,7 +140,7 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
 
 // GET /api/batteries/summary: counts per status for the board header
 export const getBatterySummaryService = async () => {
-  const [rows, receiptBatteries, activePacks, sightings] = await Promise.all([
+  const [rows, receiptBatteries] = await Promise.all([
     Battery.aggregate([
       { $match: { isActive: true } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
@@ -117,8 +153,6 @@ export const getBatterySummaryService = async () => {
       status: { $ne: "void" },
       batteryName: { $nin: ["", null] },
     }),
-    Battery.find({ isActive: true }).select("code"),
-    lastSightingsMap(),
   ]);
   const onBus = receiptBatteries.length;
 
@@ -136,28 +170,10 @@ export const getBatterySummaryService = async () => {
     total += row.count;
   }
 
-  // accountability: how much of the fleet has a human sighting on record.
-  // The sightings map only holds the last 7 days, so anything missing
-  // from it has been off every checklist and receipt for a week.
-  const today = dayString();
-  let sightedToday = 0;
-  let sightedWeek = 0;
-  for (const pack of activePacks) {
-    const seen = sightings.get(canonBattery(pack.code));
-    if (!seen) continue;
-    sightedWeek += 1;
-    if (seen.date === today) sightedToday += 1;
-  }
-
   return new ApiResponse(200, "Battery summary retrieved successfully", {
     counts,
     total,
     onBus,
-    sighted: {
-      today: sightedToday,
-      week: sightedWeek,
-      unsighted: total - sightedWeek,
-    },
   });
 };
 
