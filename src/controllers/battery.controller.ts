@@ -131,10 +131,7 @@ export const getBatteryDetails = async (
   next: NextFunction,
 ) => {
   try {
-    const result = await getBatteryDetailsService(
-      req.params.id,
-      String(req.user?.role),
-    );
+    const result = await getBatteryDetailsService(req.params.id);
     sendResponse(res, result);
   } catch (error) {
     next(error);

@@ -1,51 +1,32 @@
 import { Joi, validate } from "express-validation";
 import { BATTERY_LOCATION_VALUES } from "../config/batteryLocations";
 
-const session = Joi.string().valid("morning", "afternoon", "night");
-const register = Joi.string().valid("manager", "staff", "storekeeper");
+const timeOfDay = Joi.string().valid("morning", "afternoon", "night");
 
-export const markAttendanceValidation = () =>
+export const createAttendanceLogValidation = () =>
   validate(
     {
       body: Joi.object({
-        batteryId: Joi.string().hex().length(24).required(),
-        session: session.required(),
-        register: register.required(),
-        status: Joi.string().valid("seen", "missing").required(),
-        location: Joi.string().valid(...BATTERY_LOCATION_VALUES),
-        lastSeen: Joi.string().max(120).allow(""),
+        rows: Joi.array()
+          .items(
+            Joi.object({
+              batteryId: Joi.string().hex().length(24).required(),
+              status: Joi.string().valid("seen", "missing").required(),
+              timeOfDay: timeOfDay.required(),
+              location: Joi.string().valid(...BATTERY_LOCATION_VALUES),
+              lastSeen: Joi.string().max(300).allow(""),
+            }),
+          )
+          .min(1)
+          .max(1000)
+          .required(),
       }),
     },
     { context: true },
     { abortEarly: false },
   );
 
-export const listAttendanceValidation = () =>
-  validate(
-    {
-      query: Joi.object({
-        session: session.required(),
-        register: register.required(),
-        date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
-      }),
-    },
-    { context: true },
-    { abortEarly: false },
-  );
-
-export const attendanceCompareValidation = () =>
-  validate(
-    {
-      query: Joi.object({
-        session: session.required(),
-        date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
-      }),
-    },
-    { context: true },
-    { abortEarly: false },
-  );
-
-export const attendanceDaysValidation = () =>
+export const attendanceLogsValidation = () =>
   validate(
     {
       query: Joi.object({
@@ -57,7 +38,18 @@ export const attendanceDaysValidation = () =>
     { abortEarly: false },
   );
 
-export const attendanceEntryIdValidation = () =>
+export const attendanceCompareValidation = () =>
+  validate(
+    {
+      query: Joi.object({
+        date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    },
+    { context: true },
+    { abortEarly: false },
+  );
+
+export const attendanceLogIdValidation = () =>
   validate(
     {
       params: Joi.object({

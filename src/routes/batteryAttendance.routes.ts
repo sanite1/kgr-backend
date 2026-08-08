@@ -1,43 +1,43 @@
 import { Router } from "express";
 import { isAuthenticated } from "../middlewares/authenticatedMiddleWare";
 import { authorizeRoles } from "../middlewares/authorizeRoles";
-import { MANAGERS } from "../config/roles";
 import { requireAccess } from "../middlewares/requireAccess";
 import {
-  markAttendanceValidation,
-  listAttendanceValidation,
+  createAttendanceLogValidation,
+  attendanceLogsValidation,
   attendanceCompareValidation,
-  attendanceDaysValidation,
-  attendanceEntryIdValidation,
+  attendanceLogIdValidation,
 } from "../validations/batteryAttendance.validation";
 import {
-  getAttendance,
-  markAttendance,
+  getAttendanceFleet,
+  createAttendanceLog,
+  getAttendanceLogs,
+  getAttendanceLog,
   getAttendanceCompare,
-  getAttendanceDays,
-  clearAttendance,
+  deleteAttendanceLog,
 } from "../controllers/batteryAttendance.controller";
 
 const router = Router();
 
 router.use(isAuthenticated, requireAccess("battery_attendance"));
 
-// static paths before param paths; past-days overview is management's
-router.get(
-  "/days",
-  authorizeRoles(...MANAGERS),
-  attendanceDaysValidation(),
-  getAttendanceDays,
-);
-// laying the three registers side by side is the admin's view alone
+// the blank sheet for a new log
+router.get("/fleet", getAttendanceFleet);
+// laying a date's logs side by side is the admin's view alone
 router.get(
   "/compare",
   authorizeRoles("admin"),
   attendanceCompareValidation(),
   getAttendanceCompare,
 );
-router.get("/", listAttendanceValidation(), getAttendance);
-router.post("/", markAttendanceValidation(), markAttendance);
-router.delete("/:id", attendanceEntryIdValidation(), clearAttendance);
+router.get("/logs", attendanceLogsValidation(), getAttendanceLogs);
+router.post("/logs", createAttendanceLogValidation(), createAttendanceLog);
+router.get("/logs/:id", attendanceLogIdValidation(), getAttendanceLog);
+router.delete(
+  "/logs/:id",
+  authorizeRoles("admin"),
+  attendanceLogIdValidation(),
+  deleteAttendanceLog,
+);
 
 export default router;

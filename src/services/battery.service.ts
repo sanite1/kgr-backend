@@ -3,7 +3,7 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Battery from "../models/Battery";
 import BatteryMovement from "../models/BatteryMovement";
-import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
+import BatteryAttendanceLog from "../models/BatteryAttendanceLog";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import BatterySwap from "../models/BatterySwap";
 import Receipt from "../models/Receipt";
@@ -414,7 +414,7 @@ export const getBatteryMovementsService = async (
 // one pack on one page - its trips (receipts naming it), attendance
 // history, closing sheet appearances and swaps. Typed names elsewhere
 // are matched forgivingly: "SUB 16" and "sub16" are the same pack.
-export const getBatteryDetailsService = async (id: string, role: string) => {
+export const getBatteryDetailsService = async (id: string) => {
   const battery = await Battery.findById(id);
   if (!battery) throw new ApiError(404, "Battery not found");
 
@@ -435,24 +435,6 @@ export const getBatteryDetailsService = async (id: string, role: string) => {
       receipts: { $sum: 1 },
     },
   };
-
-  // attendance is role-scoped like the attendance page: non-admins see
-  // only their own register's marks
-  const attendanceFilter: Record<string, any> = { battery: battery._id };
-  if (role !== "admin") {
-    const own =
-      role === "manager"
-        ? "manager"
-        : role === "storekeeper"
-          ? "storekeeper"
-          : "staff";
-    Object.assign(
-      attendanceFilter,
-      own === "staff"
-        ? { register: { $in: ["staff", null] } }
-        : { register: own },
-    );
-  }
 
   const closingSince = new Date(`${today}T12:00:00Z`);
   closingSince.setDate(closingSince.getDate() - 30);
@@ -477,9 +459,10 @@ export const getBatteryDetailsService = async (id: string, role: string) => {
       .sort({ date: -1, createdAt: -1 })
       .limit(15)
       .select("billId date busNumber expectedTrips createdAt"),
-    BatteryAttendanceEntry.find(attendanceFilter)
-      .sort({ date: -1, createdAt: -1 })
-      .limit(30),
+    BatteryAttendanceLog.find({ "rows.battery": battery._id })
+      .sort({ createdAt: -1 })
+      .limit(30)
+      .select("logId date rows submittedByName createdAt"),
     BatteryClosingEntry.find({ date: { $gte: closingSinceDay } }).sort({
       date: -1,
       createdAt: -1,
@@ -513,7 +496,22 @@ export const getBatteryDetailsService = async (id: string, role: string) => {
       allTime: pick(allAgg),
     },
     receipts: recentReceipts.map((r) => r.toJSON()),
-    attendance: attendance.map((a) => a.toJSON()),
+    attendance: attendance.map((log) => {
+      const row = log.rows.find(
+        (r) => String(r.battery) === String(battery._id),
+      );
+      return {
+        _id: String(log._id),
+        logId: log.logId,
+        date: log.date,
+        timeOfDay: row?.timeOfDay ?? "morning",
+        status: row?.status ?? "seen",
+        location: row?.location,
+        lastSeen: row?.lastSeen ?? "",
+        submittedByName: log.submittedByName,
+        at: log.createdAt,
+      };
+    }),
     closings: matchedClosings.map((e) => e.toJSON()),
     swaps: swaps.map((s) => ({
       ...s.toJSON(),
