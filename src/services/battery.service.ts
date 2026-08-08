@@ -6,15 +6,13 @@ import BatteryMovement from "../models/BatteryMovement";
 import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import BatterySwap from "../models/BatterySwap";
-import Bus from "../models/Bus";
 import Receipt from "../models/Receipt";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
+import { lastSightingsMap, canonBattery } from "../helpers/batterySighting";
 import {
   ICreateBattery,
   IUpdateBattery,
-  IIssueBattery,
-  ICollectBattery,
   ISetBatteryStatus,
   IBatteriesQuery,
   IBatteryMovementsQuery,
@@ -73,7 +71,6 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
 
   const filter: Record<string, any> = {};
   if (query.status) filter.status = query.status;
-  if (query.busId) filter.bus = query.busId;
   if (query.isActive === "true") filter.isActive = true;
   if (query.isActive === "false") filter.isActive = false;
   if (query.search) {
@@ -81,19 +78,23 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
       query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
       "i",
     );
-    filter.$or = [{ code: pattern }, { busNumber: pattern }];
+    filter.code = pattern;
   }
 
-  const [batteries, totalItems] = await Promise.all([
+  const [batteries, totalItems, sightings] = await Promise.all([
     Battery.find(filter)
       .sort({ code: 1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize),
     Battery.countDocuments(filter),
+    lastSightingsMap(),
   ]);
 
   return PaginatedResponse.build(
-    batteries.map((b) => b.toJSON()),
+    batteries.map((b) => ({
+      ...b.toJSON(),
+      lastSeen: sightings.get(canonBattery(b.code)) ?? null,
+    })),
     totalItems,
     page,
     pageSize,
@@ -275,12 +276,6 @@ export const updateBatteryService = async (
   }
   if (payload.needsCheck !== undefined) battery.needsCheck = payload.needsCheck;
   if (payload.isActive !== undefined) {
-    if (payload.isActive === false && battery.bus) {
-      throw new ApiError(
-        400,
-        `${battery.code} is on ${battery.busNumber}; collect it before retiring`,
-      );
-    }
     if (payload.isActive !== battery.isActive) {
       changes.push(
         payload.isActive ? "Battery reactivated" : "Battery retired",
@@ -310,94 +305,6 @@ export const updateBatteryService = async (
   return new ApiResponse(
     200,
     `Battery ${battery.code} updated`,
-    battery.toJSON(),
-  );
-};
-
-// POST /api/batteries/:id/issue: assign a battery to a bus.
-// Bus assignment is tracked independently of status now, so issuing
-// records which bus the pack is on without changing its state.
-export const issueBatteryService = async (
-  id: string,
-  payload: IIssueBattery,
-  by: string,
-) => {
-  const battery = await Battery.findById(id);
-  if (!battery) throw new ApiError(404, "Battery not found");
-  if (!battery.isActive) {
-    throw new ApiError(400, `${battery.code} is retired`);
-  }
-  if (battery.bus) {
-    throw new ApiError(
-      400,
-      `${battery.code} is already on ${battery.busNumber}`,
-    );
-  }
-  if (battery.status === "faulty") {
-    throw new ApiError(400, `${battery.code} is faulty and cannot be issued`);
-  }
-
-  const bus = await Bus.findById(payload.busId);
-  if (!bus) throw new ApiError(404, "Bus not found");
-
-  battery.bus = bus._id as any;
-  battery.busNumber = bus.number;
-  await battery.save();
-
-  await BatteryMovement.create({
-    battery: battery._id,
-    batteryCode: battery.code,
-    action: "issue",
-    fromStatus: battery.status,
-    toStatus: battery.status,
-    bus: bus._id,
-    busNumber: bus.number,
-    note: payload.note || "",
-    by,
-  });
-
-  return new ApiResponse(
-    200,
-    `${battery.code} issued to ${bus.number}`,
-    battery.toJSON(),
-  );
-};
-
-// POST /api/batteries/:id/collect: take a battery off its bus.
-// Clears the bus only; the pack keeps its status until someone updates it.
-export const collectBatteryService = async (
-  id: string,
-  payload: ICollectBattery,
-  by: string,
-) => {
-  const battery = await Battery.findById(id);
-  if (!battery) throw new ApiError(404, "Battery not found");
-  if (!battery.bus) {
-    throw new ApiError(400, `${battery.code} is not on a bus`);
-  }
-
-  const fromBus = battery.bus;
-  const fromBusNumber = battery.busNumber;
-
-  battery.bus = undefined;
-  battery.busNumber = undefined;
-  await battery.save();
-
-  await BatteryMovement.create({
-    battery: battery._id,
-    batteryCode: battery.code,
-    action: "collect",
-    fromStatus: battery.status,
-    toStatus: battery.status,
-    bus: fromBus,
-    busNumber: fromBusNumber,
-    note: payload.note || "",
-    by,
-  });
-
-  return new ApiResponse(
-    200,
-    `${battery.code} collected from ${fromBusNumber}`,
     battery.toJSON(),
   );
 };
@@ -558,8 +465,12 @@ export const getBatteryDetailsService = async (id: string, role: string) => {
     .filter((e) => canon(e.batteryName) === canon(battery.code))
     .slice(0, 15);
 
+  // where humans last wrote the pack down: checklist first, receipts next
+  const sightings = await lastSightingsMap();
+
   return new ApiResponse(200, "Battery details retrieved successfully", {
     battery: battery.toJSON(),
+    lastSeen: sightings.get(canonBattery(battery.code)) ?? null,
     trips: {
       today: pick(todayAgg),
       thisMonth: pick(monthAgg),

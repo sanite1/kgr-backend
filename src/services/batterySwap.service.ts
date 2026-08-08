@@ -15,9 +15,10 @@ import {
 
 const SWAP_ID_START = Number(process.env.SWAP_ID_START) || 1;
 
-// POST /api/battery-swaps: record a swap AND move the packs in the fleet,
-// so "which battery is on which bus" stays true and the guards below keep
-// working for the next swap. Every wrong combination is refused loudly.
+// POST /api/battery-swaps: record a swap. Which battery sits on which
+// bus is no longer kept in a registry; it comes from checklist and
+// receipt sightings. So a swap only checks what it can truly know: the
+// packs exist, they are different, and the supplied one is usable.
 export const createSwapService = async (
   payload: ICreateBatterySwap,
   byId: string,
@@ -58,43 +59,11 @@ export const createSwapService = async (
       `${supplied.code} is marked not in use; change its status before supplying it`,
     );
   }
-  if (supplied.bus && String(supplied.bus) === String(bus._id)) {
-    throw new ApiError(400, `${supplied.code} is already on ${bus.number}`);
-  }
-  if (supplied.bus) {
-    throw new ApiError(
-      400,
-      `${supplied.code} is currently on ${supplied.busNumber}; it cannot be in two buses at once`,
-    );
-  }
-
-  // ---- the initial pack must really be the one on this bus ----
-  if (initial.bus && String(initial.bus) !== String(bus._id)) {
-    throw new ApiError(
-      400,
-      `${initial.code} is recorded on ${initial.busNumber}, not on ${bus.number}`,
-    );
-  }
-  const currentOnBus = await Battery.findOne({ bus: bus._id });
-  if (currentOnBus && String(currentOnBus._id) !== String(initial._id)) {
-    throw new ApiError(
-      400,
-      `${bus.number} currently carries ${currentOnBus.code}; pick it as the initial battery`,
-    );
-  }
-
   const user = await User.findById(byId);
   const byName = user ? `${user.firstName} ${user.lastName}`.trim() : "";
   const swapId = await nextSequence("battery_swap_id", SWAP_ID_START);
 
-  // move the packs: initial comes off, supplied goes on
-  initial.bus = undefined;
-  initial.busNumber = undefined;
-  await initial.save();
-  supplied.bus = bus._id as any;
-  supplied.busNumber = bus.number;
-  await supplied.save();
-
+  // the movement log keeps each pack's story readable
   await BatteryMovement.create([
     {
       battery: initial._id,

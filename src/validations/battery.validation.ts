@@ -53,31 +53,6 @@ export const updateBatteryValidation = () =>
     { abortEarly: false },
   );
 
-export const issueBatteryValidation = () =>
-  validate(
-    {
-      params: idParam,
-      body: Joi.object({
-        busId: Joi.string().hex().length(24).required(),
-        note: Joi.string().max(500).allow(""),
-      }),
-    },
-    { context: true },
-    { abortEarly: false },
-  );
-
-export const collectBatteryValidation = () =>
-  validate(
-    {
-      params: idParam,
-      body: Joi.object({
-        note: Joi.string().max(500).allow(""),
-      }),
-    },
-    { context: true },
-    { abortEarly: false },
-  );
-
 export const setBatteryStatusValidation = () =>
   validate(
     {
@@ -100,7 +75,6 @@ export const listBatteriesValidation = () =>
         page: Joi.number().integer().min(1),
         pageSize: Joi.number().integer().min(1).max(100),
         status: Joi.string().valid(...STATUSES),
-        busId: Joi.string().hex().length(24),
         isActive: Joi.string().valid("true", "false"),
         search: Joi.string().max(100).allow(""),
       }),

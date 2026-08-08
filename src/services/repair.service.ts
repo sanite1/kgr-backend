@@ -104,12 +104,6 @@ export const createRepairJobService = async (
   if (payload.batteryId) {
     battery = await Battery.findById(payload.batteryId);
     if (!battery) throw new ApiError(404, "Battery not found");
-    if (battery.bus) {
-      throw new ApiError(
-        400,
-        `${battery.code} is on ${battery.busNumber}; collect it before opening a repair`,
-      );
-    }
     const openJob = await RepairJob.findOne({
       battery: battery._id,
       status: "open",

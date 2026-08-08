@@ -7,8 +7,6 @@ import {
   getIdleBatteriesService,
   snoozeBatteryService,
   updateBatteryService,
-  issueBatteryService,
-  collectBatteryService,
   setBatteryStatusService,
   getBatteryMovementsService,
   getBatteryDetailsService,
@@ -16,8 +14,6 @@ import {
 import {
   ICreateBattery,
   IUpdateBattery,
-  IIssueBattery,
-  ICollectBattery,
   ISetBatteryStatus,
   IBatteriesQuery,
   IBatteryMovementsQuery,
@@ -104,40 +100,6 @@ export const updateBattery = async (
     const result = await updateBatteryService(
       req.params.id,
       req.body as IUpdateBattery,
-      String(req.user?._id),
-    );
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const issueBattery = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await issueBatteryService(
-      req.params.id,
-      req.body as IIssueBattery,
-      String(req.user?._id),
-    );
-    sendResponse(res, result);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const collectBattery = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const result = await collectBatteryService(
-      req.params.id,
-      req.body as ICollectBattery,
       String(req.user?._id),
     );
     sendResponse(res, result);

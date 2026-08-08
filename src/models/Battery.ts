@@ -31,8 +31,6 @@ const batterySchema = new Schema<IBattery>(
       index: true,
     },
     needsCheck: { type: Boolean, default: false, index: true },
-    bus: { type: Schema.Types.ObjectId, ref: "Bus", index: true },
-    busNumber: { type: String },
     notes: { type: String, default: "" },
     isActive: { type: Boolean, default: true, index: true },
     retiredReason: {
@@ -55,4 +53,11 @@ const batterySchema = new Schema<IBattery>(
 );
 
 const Battery = model<IBattery>("Battery", batterySchema);
+
+// the battery -> bus registry link was scrapped: where a pack is now
+// comes from checklist and receipt sightings. Clean the old fields and
+// index off existing documents; both calls are safe to fail.
+Battery.collection.dropIndex("bus_1").catch(() => {});
+Battery.updateMany({}, { $unset: { bus: 1, busNumber: 1 } }).catch(() => {});
+
 export default Battery;

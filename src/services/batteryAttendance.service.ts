@@ -6,6 +6,7 @@ import BatteryAttendanceEntry from "../models/BatteryAttendanceEntry";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
+import { lastSightingsMap, canonBattery } from "../helpers/batterySighting";
 import {
   IMarkAttendance,
   IAttendanceQuery,
@@ -60,7 +61,7 @@ export const getAttendanceService = async (
   since.setDate(since.getDate() - 3);
   const sinceDay = since.toISOString().slice(0, 10);
 
-  const [batteries, marks, closings] = await Promise.all([
+  const [batteries, marks, closings, sightings] = await Promise.all([
     Battery.find().sort({ code: 1 }),
     BatteryAttendanceEntry.find({
       date,
@@ -71,6 +72,7 @@ export const getAttendanceService = async (
       date: 1,
       createdAt: 1,
     }),
+    lastSightingsMap(),
   ]);
 
   // ascending sort means the last write per pack wins
@@ -94,7 +96,7 @@ export const getAttendanceService = async (
       batteryId: String(battery._id),
       batteryCode: battery.code,
       batteryStatus: battery.status,
-      busNumber: battery.busNumber || "",
+      lastSeen: sightings.get(canonBattery(battery.code)) ?? null,
       closing: closingByCanon.get(canon(battery.code)) ?? null,
       mark: mark ? mark.toJSON() : null,
     };
@@ -173,9 +175,10 @@ export const getAttendanceCompareService = async (
 ) => {
   const date = query.date || dayString();
 
-  const [batteries, marks] = await Promise.all([
+  const [batteries, marks, sightings] = await Promise.all([
     Battery.find().sort({ code: 1 }),
     BatteryAttendanceEntry.find({ date, session: query.session }),
+    lastSightingsMap(),
   ]);
 
   // battery id -> register -> mark
@@ -218,7 +221,7 @@ export const getAttendanceCompareService = async (
     return {
       batteryId: String(battery._id),
       batteryCode: battery.code,
-      busNumber: battery.busNumber || "",
+      lastSeen: sightings.get(canonBattery(battery.code)) ?? null,
       manager: verdicts.manager,
       staff: verdicts.staff,
       storekeeper: verdicts.storekeeper,

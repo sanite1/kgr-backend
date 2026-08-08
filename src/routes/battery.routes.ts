@@ -6,8 +6,6 @@ import { requireAccess } from "../middlewares/requireAccess";
 import {
   createBatteryValidation,
   updateBatteryValidation,
-  issueBatteryValidation,
-  collectBatteryValidation,
   setBatteryStatusValidation,
   listBatteriesValidation,
   batteryDetailsValidation,
@@ -21,8 +19,6 @@ import {
   getIdleBatteries,
   snoozeBattery,
   updateBattery,
-  issueBattery,
-  collectBattery,
   setBatteryStatus,
   getBatteryMovements,
   getBatteryDetails,
@@ -57,19 +53,6 @@ router.patch(
   requireAccess("batteries"),
   updateBatteryValidation(),
   updateBattery,
-);
-// daily swap operations: store work
-router.post(
-  "/:id/issue",
-  authorizeRoles(...STORE),
-  issueBatteryValidation(),
-  issueBattery,
-);
-router.post(
-  "/:id/collect",
-  authorizeRoles(...STORE),
-  collectBatteryValidation(),
-  collectBattery,
 );
 router.post(
   "/:id/status",

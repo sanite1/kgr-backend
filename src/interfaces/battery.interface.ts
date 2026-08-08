@@ -11,8 +11,6 @@ export interface IBattery extends Document {
   status: BatteryStatus;
   location: BatteryLocation; // where the pack physically sits
   needsCheck: boolean; // flagged for inspection during an audit
-  bus?: Types.ObjectId; // set while assigned to a bus (independent of status)
-  busNumber?: string; // snapshot
   notes: string;
   isActive: boolean; // false = retired/written off
   retiredReason?: BatteryRetiredReason; // why, when isActive is false
@@ -54,15 +52,6 @@ export interface IUpdateBattery {
   retiredReason?: BatteryRetiredReason;
 }
 
-export interface IIssueBattery {
-  busId: string;
-  note?: string;
-}
-
-export interface ICollectBattery {
-  note?: string; // collecting only clears the bus; status is managed separately
-}
-
 export interface ISetBatteryStatus {
   to: BatteryStatus;
   note?: string;
@@ -72,7 +61,6 @@ export interface IBatteriesQuery {
   page?: number;
   pageSize?: number;
   status?: string;
-  busId?: string;
   isActive?: string;
   search?: string;
 }
