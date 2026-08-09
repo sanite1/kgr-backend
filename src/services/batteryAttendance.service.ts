@@ -149,15 +149,23 @@ export const getAttendanceLogsService = async (query: IAttendanceLogsQuery) => {
   );
 };
 
-// GET /api/battery-attendance/logs/:id: one log's full rows, read only
+// GET /api/battery-attendance/logs/:id: one log's full rows, read only.
+// Packs the submitter never marked ride along too, so the page can show
+// the whole fleet and not just the called part of it.
 export const getAttendanceLogService = async (id: string) => {
   const log = await BatteryAttendanceLog.findById(id);
   if (!log) throw new ApiError(404, "Attendance log not found");
-  return new ApiResponse(
-    200,
-    "Attendance log retrieved successfully",
-    log.toJSON(),
-  );
+
+  const batteries = await Battery.find({ isActive: true }).sort({ code: 1 });
+  const markedIds = new Set(log.rows.map((r) => String(r.battery)));
+  const unmarked = batteries
+    .filter((b) => !markedIds.has(String(b._id)))
+    .map((b) => ({ battery: String(b._id), batteryCode: b.code }));
+
+  return new ApiResponse(200, "Attendance log retrieved successfully", {
+    ...log.toJSON(),
+    unmarked,
+  });
 };
 
 // GET /api/battery-attendance/compare?date=: every log for a date laid
