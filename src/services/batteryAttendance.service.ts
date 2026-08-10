@@ -32,6 +32,50 @@ const timeOfDayNow = (): "morning" | "afternoon" | "night" => {
   return "night";
 };
 
+// One-time backfill: logs submitted before auto-marking existed get
+// their auto rows filled in from their own day's sightings, so old logs
+// read the same as new ones. Processed logs carry totals.auto and are
+// never touched again. Fire-and-forget, safe to re-run.
+const backfillAutoMarks = async () => {
+  const logs = await BatteryAttendanceLog.find({
+    "totals.auto": { $exists: false },
+  });
+  if (logs.length === 0) return;
+
+  const batteries = await Battery.find({ isActive: true });
+  for (const log of logs) {
+    const sightings = await sightingsOnDay(log.date);
+    const marked = new Set(log.rows.map((r) => String(r.battery)));
+    const autoTime = log.rows[0]?.timeOfDay ?? "morning";
+    let auto = 0;
+    for (const battery of batteries) {
+      if (marked.has(String(battery._id))) continue;
+      const sighting = sightings.get(canonBattery(battery.code));
+      if (!sighting) continue;
+      log.rows.push({
+        battery: battery._id as any,
+        batteryCode: battery.code,
+        status: "seen",
+        timeOfDay: autoTime,
+        onBus: sighting.busName,
+        auto: true,
+        lastSeen: "",
+      });
+      auto += 1;
+    }
+    const seen = log.rows.filter((r) => r.status === "seen").length;
+    log.totals = {
+      fleet: log.totals.fleet,
+      seen,
+      missing: log.rows.length - seen,
+      unmarked: Math.max(0, log.totals.fleet - log.rows.length),
+      auto,
+    };
+    await log.save();
+  }
+};
+backfillAutoMarks().catch(() => {});
+
 // GET /api/battery-attendance/fleet: the blank sheet for a new log.
 // Every registered pack, with today's checklist/receipt sighting and
 // the closing sheets' last word on where it sleeps, both as hints.
