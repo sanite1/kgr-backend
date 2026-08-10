@@ -15,6 +15,8 @@ const rowSchema = new Schema(
       type: String,
       enum: ["main_yard", "muhd_house", "kamila_house", "ubs"],
     },
+    onBus: { type: String, default: "" },
+    auto: { type: Boolean, default: false },
     lastSeen: { type: String, default: "" },
   },
   { _id: false },

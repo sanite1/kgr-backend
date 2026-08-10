@@ -507,6 +507,8 @@ export const getBatteryDetailsService = async (id: string) => {
         timeOfDay: row?.timeOfDay ?? "morning",
         status: row?.status ?? "seen",
         location: row?.location,
+        onBus: row?.onBus || undefined,
+        auto: row?.auto || undefined,
         lastSeen: row?.lastSeen ?? "",
         submittedByName: log.submittedByName,
         at: log.createdAt,

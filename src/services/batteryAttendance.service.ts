@@ -17,6 +17,21 @@ import {
 
 const LOG_ID_START = Number(process.env.ATTENDANCE_LOG_ID_START) || 1;
 
+// the part of the day it is right now, Lagos time; stamped onto rows
+// the system fills in itself
+const timeOfDayNow = (): "morning" | "afternoon" | "night" => {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Lagos",
+      hour: "numeric",
+      hour12: false,
+    }).format(new Date()),
+  );
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "night";
+};
+
 // GET /api/battery-attendance/fleet: the blank sheet for a new log.
 // Every registered pack, with today's checklist/receipt sighting and
 // the closing sheets' last word on where it sleeps, both as hints.
@@ -92,11 +107,34 @@ export const createAttendanceLogService = async (
     });
   }
 
-  const rows = [...rowByBattery.values()];
-  if (rows.length === 0) {
+  if (rowByBattery.size === 0) {
     throw new ApiError(400, "Mark at least one battery before submitting");
   }
 
+  // any pack the submitter skipped but a checklist or receipt saw on a
+  // bus today is auto-marked "seen on that bus", so it is never a blank.
+  // A manual mark always wins: someone may know the pack came back.
+  const sightings = await sightingsOnDay(dayString());
+  const autoTime = timeOfDayNow();
+  let auto = 0;
+  for (const battery of batteries) {
+    const key = String(battery._id);
+    if (rowByBattery.has(key)) continue;
+    const sighting = sightings.get(canonBattery(battery.code));
+    if (!sighting) continue;
+    rowByBattery.set(key, {
+      battery: battery._id as any,
+      batteryCode: battery.code,
+      status: "seen",
+      timeOfDay: autoTime,
+      onBus: sighting.busName,
+      auto: true,
+      lastSeen: "",
+    });
+    auto += 1;
+  }
+
+  const rows = [...rowByBattery.values()];
   const seen = rows.filter((r) => r.status === "seen").length;
   const missing = rows.length - seen;
 
@@ -112,6 +150,7 @@ export const createAttendanceLogService = async (
       seen,
       missing,
       unmarked: batteries.length - rows.length,
+      auto,
     },
     submittedBy: requester.id,
     submittedByName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
@@ -120,7 +159,7 @@ export const createAttendanceLogService = async (
 
   return new ApiResponse(
     201,
-    `Attendance #${logId} submitted: ${seen} seen, ${missing} missing`,
+    `Attendance #${logId} submitted: ${seen} seen${auto > 0 ? ` (${auto} auto from buses)` : ""}, ${missing} missing`,
     log.toJSON(),
   );
 };
@@ -195,6 +234,8 @@ export const getAttendanceCompareService = async (
             status: r.status,
             timeOfDay: r.timeOfDay,
             location: r.location,
+            onBus: r.onBus || undefined,
+            auto: r.auto || undefined,
             lastSeen: r.lastSeen,
           }
         : null;
@@ -207,10 +248,13 @@ export const getAttendanceCompareService = async (
     if (logs.length === 0 || marked.length === 0) {
       status = "unmarked";
     } else {
+      // "where" is a yard location or a bus, whichever the row carries
+      const place = (v: { location?: string; onBus?: string }) =>
+        v.location ?? (v.onBus ? `bus:${v.onBus}` : "");
       const agree = marked.every(
         (v) =>
           v.status === marked[0].status &&
-          (v.status !== "seen" || v.location === marked[0].location),
+          (v.status !== "seen" || place(v) === place(marked[0])),
       );
       if (!agree) status = "mismatch";
       else status = marked.length === logs.length ? "match" : "partial";

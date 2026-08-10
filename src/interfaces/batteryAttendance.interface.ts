@@ -15,6 +15,8 @@ export interface IAttendanceLogRow {
   status: AttendanceStatus;
   timeOfDay: AttendanceTimeOfDay; // when the user says they saw it
   location?: BatteryLocation; // where, when seen
+  onBus?: string; // the bus, when auto-marked from a sighting
+  auto?: boolean; // filled in by the system, not the submitter
   lastSeen?: string; // free note, when missing
 }
 
@@ -23,6 +25,7 @@ export interface IAttendanceTotals {
   seen: number;
   missing: number;
   unmarked: number;
+  auto?: number; // of the seen, how many the system filled in
 }
 
 export interface IBatteryAttendanceLog extends Document {
