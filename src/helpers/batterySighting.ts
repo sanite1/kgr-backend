@@ -1,4 +1,5 @@
 import ChecklistEntry from "../models/ChecklistEntry";
+import HijetEntry from "../models/HijetEntry";
 import Receipt from "../models/Receipt";
 import { dayString } from "./day";
 
@@ -12,15 +13,17 @@ export const canonBattery = (s: string): string =>
 export interface BatterySighting {
   busName: string;
   date: string;
-  source: "checklist" | "receipt";
+  source: "checklist" | "receipt" | "hijet";
 }
 
 const SIGHTING_LOOKBACK_DAYS = 7;
 
-// merge sightings, receipts first so a checklist row for the same day
-// overwrites it: the checklist is an eyes-on sighting at the gate
+// merge sightings weakest claim first, so on a same-day tie the later
+// loops win: receipts, then hijet pickups, then the checklist (an
+// eyes-on sighting at the gate beats everything)
 const mergeSightings = (
   receipts: { batteryName: string; busNumber: string; date: string }[],
+  hijets: { batteryName: string; vehicleName: string; date: string }[],
   checks: { batteryName: string; busName: string; date: string }[],
 ): Map<string, BatterySighting> => {
   const map = new Map<string, BatterySighting>();
@@ -30,6 +33,17 @@ const mergeSightings = (
       date: r.date,
       source: "receipt",
     });
+  }
+  for (const h of hijets) {
+    const key = canonBattery(h.batteryName);
+    const prev = map.get(key);
+    if (!prev || h.date >= prev.date) {
+      map.set(key, {
+        busName: h.vehicleName,
+        date: h.date,
+        source: "hijet",
+      });
+    }
   }
   for (const c of checks) {
     const key = canonBattery(c.batteryName);
@@ -51,7 +65,7 @@ const mergeSightings = (
 export const sightingsOnDay = async (
   date: string,
 ): Promise<Map<string, BatterySighting>> => {
-  const [receipts, checks] = await Promise.all([
+  const [receipts, hijets, checks] = await Promise.all([
     Receipt.find({
       date,
       status: { $ne: "void" },
@@ -59,11 +73,14 @@ export const sightingsOnDay = async (
     })
       .sort({ createdAt: 1 })
       .select("batteryName busNumber date"),
+    HijetEntry.find({ date })
+      .sort({ createdAt: 1 })
+      .select("batteryName vehicleName date"),
     ChecklistEntry.find({ date })
       .sort({ createdAt: 1 })
       .select("batteryName busName date"),
   ]);
-  return mergeSightings(receipts, checks);
+  return mergeSightings(receipts, hijets, checks);
 };
 
 // canon(battery code) -> last place the pack was seen in the 7 days up
@@ -77,7 +94,7 @@ export const lastSightingsMap = async (
   since.setDate(since.getDate() - SIGHTING_LOOKBACK_DAYS);
   const sinceDay = since.toISOString().slice(0, 10);
 
-  const [receipts, checks] = await Promise.all([
+  const [receipts, hijets, checks] = await Promise.all([
     Receipt.find({
       date: { $gte: sinceDay, $lte: today },
       status: { $ne: "void" },
@@ -85,9 +102,12 @@ export const lastSightingsMap = async (
     })
       .sort({ date: 1, createdAt: 1 })
       .select("batteryName busNumber date"),
+    HijetEntry.find({ date: { $gte: sinceDay, $lte: today } })
+      .sort({ date: 1, createdAt: 1 })
+      .select("batteryName vehicleName date"),
     ChecklistEntry.find({ date: { $gte: sinceDay, $lte: today } })
       .sort({ date: 1, createdAt: 1 })
       .select("batteryName busName date"),
   ]);
-  return mergeSightings(receipts, checks);
+  return mergeSightings(receipts, hijets, checks);
 };

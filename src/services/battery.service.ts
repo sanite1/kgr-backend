@@ -6,6 +6,7 @@ import BatteryMovement from "../models/BatteryMovement";
 import BatteryAttendanceLog from "../models/BatteryAttendanceLog";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import BatterySwap from "../models/BatterySwap";
+import HijetEntry from "../models/HijetEntry";
 import Receipt from "../models/Receipt";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
@@ -82,35 +83,46 @@ export const getBatteriesService = async (query: IBatteriesQuery) => {
   }
 
   const today = dayString();
-  const [batteries, totalItems, sightings, monthRows] = await Promise.all([
-    Battery.find(filter)
-      .sort({ code: 1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize),
-    Battery.countDocuments(filter),
-    lastSightingsMap(),
-    // this month's trips per typed battery name; canon-summed below so
-    // "SUB 16" and "sub16" land on the same pack
-    Receipt.aggregate([
-      {
-        $match: {
-          status: { $ne: "void" },
-          date: new RegExp(`^${today.slice(0, 7)}-`),
-          batteryName: { $nin: ["", null] },
+  const [batteries, totalItems, sightings, monthRows, hijetMonthRows] =
+    await Promise.all([
+      Battery.find(filter)
+        .sort({ code: 1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize),
+      Battery.countDocuments(filter),
+      lastSightingsMap(),
+      // this month's trips per typed battery name; canon-summed below so
+      // "SUB 16" and "sub16" land on the same pack
+      Receipt.aggregate([
+        {
+          $match: {
+            status: { $ne: "void" },
+            date: new RegExp(`^${today.slice(0, 7)}-`),
+            batteryName: { $nin: ["", null] },
+          },
         },
-      },
-      {
-        $group: {
-          _id: { name: "$batteryName", date: "$date" },
-          trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+        {
+          $group: {
+            _id: { name: "$batteryName", date: "$date" },
+            trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+          },
         },
-      },
-    ]),
-  ]);
+      ]),
+      // hijet errands carry trips too
+      HijetEntry.aggregate([
+        { $match: { date: new RegExp(`^${today.slice(0, 7)}-`) } },
+        {
+          $group: {
+            _id: { name: "$batteryName", date: "$date" },
+            trips: { $sum: { $ifNull: ["$trips", 0] } },
+          },
+        },
+      ]),
+    ]);
 
   const tripsToday = new Map<string, number>();
   const tripsMonth = new Map<string, number>();
-  for (const row of monthRows) {
+  for (const row of [...monthRows, ...hijetMonthRows]) {
     const key = canonBattery(row._id.name);
     tripsMonth.set(key, (tripsMonth.get(key) ?? 0) + row.trips);
     if (row._id.date === today) {
@@ -183,7 +195,7 @@ export const getBatterySummaryService = async () => {
 export const getIdleBatteriesService = async () => {
   const THRESHOLD_DAYS = 2; // 48 hours in business days
 
-  const [batteries, lastWorkedRows] = await Promise.all([
+  const [batteries, lastWorkedRows, lastHijetRows] = await Promise.all([
     Battery.find({ isActive: true }).sort({ code: 1 }),
     Receipt.aggregate([
       {
@@ -194,11 +206,20 @@ export const getIdleBatteriesService = async () => {
       },
       { $group: { _id: "$batteryName", lastDate: { $max: "$date" } } },
     ]),
+    // errands on the hijets are work too; without this a battery that
+    // ran deliveries all week would look idle
+    HijetEntry.aggregate([
+      { $group: { _id: "$batteryName", lastDate: { $max: "$date" } } },
+    ]),
   ]);
 
-  const lastByCode = new Map<string, string>(
-    lastWorkedRows.map((r: any) => [r._id, r.lastDate]),
-  );
+  // canon-keyed so "SUB 16" on a receipt still matches battery SUB16
+  const lastByCode = new Map<string, string>();
+  for (const r of [...lastWorkedRows, ...lastHijetRows]) {
+    const key = canonBattery(r._id);
+    const prev = lastByCode.get(key);
+    if (!prev || r.lastDate > prev) lastByCode.set(key, r.lastDate);
+  }
   const todayMs = Date.parse(`${dayString()}T00:00:00Z`);
   const dayMs = 24 * 60 * 60 * 1000;
   const now = new Date();
@@ -206,7 +227,7 @@ export const getIdleBatteriesService = async () => {
   const idle: Record<string, any>[] = [];
   const snoozed: Record<string, any>[] = [];
   for (const battery of batteries) {
-    const lastWorkedDate = lastByCode.get(battery.code) ?? null;
+    const lastWorkedDate = lastByCode.get(canonBattery(battery.code)) ?? null;
     // a pack that never worked has been idle since it was registered
     const sinceMs = lastWorkedDate
       ? Date.parse(`${lastWorkedDate}T00:00:00Z`)
@@ -440,10 +461,18 @@ export const getBatteryDetailsService = async (id: string) => {
   closingSince.setDate(closingSince.getDate() - 30);
   const closingSinceDay = closingSince.toISOString().slice(0, 10);
 
+  const hijetBase = { batteryName: namePattern };
+  const hijetSum = {
+    $group: { _id: null, trips: { $sum: { $ifNull: ["$trips", 0] } } },
+  };
+
   const [
     allAgg,
     todayAgg,
     monthAgg,
+    hijetAllAgg,
+    hijetTodayAgg,
+    hijetMonthAgg,
     recentReceipts,
     attendance,
     closings,
@@ -454,6 +483,12 @@ export const getBatteryDetailsService = async (id: string) => {
     Receipt.aggregate([
       { $match: { ...receiptBase, date: monthPattern } },
       sumStage,
+    ]),
+    HijetEntry.aggregate([{ $match: hijetBase }, hijetSum]),
+    HijetEntry.aggregate([{ $match: { ...hijetBase, date: today } }, hijetSum]),
+    HijetEntry.aggregate([
+      { $match: { ...hijetBase, date: monthPattern } },
+      hijetSum,
     ]),
     Receipt.find(receiptBase)
       .sort({ date: -1, createdAt: -1 })
@@ -475,9 +510,11 @@ export const getBatteryDetailsService = async (id: string) => {
   ]);
 
   const round = (n: number) => Math.round(n * 2) / 2;
-  const pick = (agg: any[]) => {
+  // hijet errand trips count toward how hard the pack worked
+  const pick = (agg: any[], hijetAgg: any[]) => {
     const row = agg[0] || { trips: 0, receipts: 0 };
-    return { trips: round(row.trips), receipts: row.receipts };
+    const hijet = hijetAgg[0] || { trips: 0 };
+    return { trips: round(row.trips + hijet.trips), receipts: row.receipts };
   };
 
   const matchedClosings = closings
@@ -491,9 +528,9 @@ export const getBatteryDetailsService = async (id: string) => {
     battery: battery.toJSON(),
     lastSeen: sightings.get(canonBattery(battery.code)) ?? null,
     trips: {
-      today: pick(todayAgg),
-      thisMonth: pick(monthAgg),
-      allTime: pick(allAgg),
+      today: pick(todayAgg, hijetTodayAgg),
+      thisMonth: pick(monthAgg, hijetMonthAgg),
+      allTime: pick(allAgg, hijetAllAgg),
     },
     receipts: recentReceipts.map((r) => r.toJSON()),
     attendance: attendance.map((log) => {
