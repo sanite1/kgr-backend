@@ -17,6 +17,11 @@ export interface IAttendanceLogRow {
   location?: BatteryLocation; // where, when seen
   onBus?: string; // the bus, when auto-marked from a sighting
   auto?: boolean; // filled in by the system, not the submitter
+  // where the system's evidence came from, and how fresh it is
+  autoSource?:
+    "today_sighting" | "last_sighting" | "battery_status" | "prev_attendance";
+  asOf?: string; // YYYY-MM-DD the evidence dates from
+  note?: string; // battery_status rows: the status value
   lastSeen?: string; // free note, when missing
 }
 

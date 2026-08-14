@@ -17,6 +17,17 @@ const rowSchema = new Schema(
     },
     onBus: { type: String, default: "" },
     auto: { type: Boolean, default: false },
+    autoSource: {
+      type: String,
+      enum: [
+        "today_sighting",
+        "last_sighting",
+        "battery_status",
+        "prev_attendance",
+      ],
+    },
+    asOf: { type: String },
+    note: { type: String, default: "" },
     lastSeen: { type: String, default: "" },
   },
   { _id: false },

@@ -3,11 +3,16 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import Battery from "../models/Battery";
 import BatteryAttendanceLog from "../models/BatteryAttendanceLog";
+import BatteryMovement from "../models/BatteryMovement";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
 import { nextSequence } from "../helpers/sequence";
-import { sightingsOnDay, canonBattery } from "../helpers/batterySighting";
+import {
+  sightingsOnDay,
+  lastSightingsMap,
+  canonBattery,
+} from "../helpers/batterySighting";
 import {
   ICreateAttendanceLog,
   IAttendanceLogsQuery,
@@ -155,27 +160,132 @@ export const createAttendanceLogService = async (
     throw new ApiError(400, "Mark at least one battery before submitting");
   }
 
-  // any pack the submitter skipped but a checklist or receipt saw on a
-  // bus today is auto-marked "seen on that bus", so it is never a blank.
-  // A manual mark always wins: someone may know the pack came back.
-  const sightings = await sightingsOnDay(dayString());
+  // Packs the submitter skipped are accounted for by the system so the
+  // admin still knows where they are. A manual mark always wins. The
+  // evidence chain, freshest claim first:
+  //   1. today's checklist/receipt sighting -> "on that bus"
+  //   2. faulty / not-in-use status vs the last 7-day sighting: whichever
+  //      is more recent speaks (a status changed after the sighting wins)
+  //   3. the last sighting this week, stamped with its date
+  //   4. the last hand-marked "seen" in a previous roll call (14 days)
+  //   5. nothing anywhere -> honestly unmarked
+  const today = dayString();
+  const prevSince = new Date(`${today}T12:00:00Z`);
+  prevSince.setDate(prevSince.getDate() - 14);
+  const [todaySightings, weekSightings, prevLogs] = await Promise.all([
+    sightingsOnDay(today),
+    lastSightingsMap(),
+    BatteryAttendanceLog.find({
+      date: { $gte: prevSince.toISOString().slice(0, 10), $lt: today },
+    }).sort({ createdAt: -1 }),
+  ]);
+
+  // per pack: the newest hand-marked "seen" from earlier roll calls
+  const prevMarkByBattery = new Map<
+    string,
+    { location?: string; onBus?: string; date: string }
+  >();
+  for (const prev of prevLogs) {
+    for (const r of prev.rows) {
+      const key = String(r.battery);
+      if (r.auto || r.status !== "seen" || prevMarkByBattery.has(key)) continue;
+      prevMarkByBattery.set(key, {
+        location: r.location,
+        onBus: r.onBus || undefined,
+        date: prev.date,
+      });
+    }
+  }
+
+  // when did each skipped faulty/not-in-use pack last change status?
+  const parked = batteries.filter(
+    (b) =>
+      !rowByBattery.has(String(b._id)) &&
+      (b.status === "faulty" || b.status === "not_in_use"),
+  );
+  const statusDates = new Map<string, string>();
+  await Promise.all(
+    parked.map(async (b) => {
+      const move = await BatteryMovement.findOne({
+        battery: b._id,
+        action: "status",
+        toStatus: b.status,
+      }).sort({ createdAt: -1 });
+      if (move?.createdAt) {
+        statusDates.set(
+          String(b._id),
+          move.createdAt.toISOString().slice(0, 10),
+        );
+      }
+    }),
+  );
+
   const autoTime = timeOfDayNow();
   let auto = 0;
-  for (const battery of batteries) {
-    const key = String(battery._id);
-    if (rowByBattery.has(key)) continue;
-    const sighting = sightings.get(canonBattery(battery.code));
-    if (!sighting) continue;
-    rowByBattery.set(key, {
+  const addAuto = (
+    battery: (typeof batteries)[number],
+    fields: Partial<IAttendanceLogRow>,
+  ) => {
+    rowByBattery.set(String(battery._id), {
       battery: battery._id as any,
       batteryCode: battery.code,
       status: "seen",
       timeOfDay: autoTime,
-      onBus: sighting.busName,
       auto: true,
       lastSeen: "",
+      ...fields,
     });
     auto += 1;
+  };
+
+  for (const battery of batteries) {
+    const key = String(battery._id);
+    if (rowByBattery.has(key)) continue;
+    const canonKey = canonBattery(battery.code);
+    const sighting =
+      todaySightings.get(canonKey) ?? weekSightings.get(canonKey);
+    const isParked =
+      battery.status === "faulty" || battery.status === "not_in_use";
+
+    if (isParked) {
+      const statusDate = statusDates.get(key) ?? "";
+      // the checklist speaks unless the status change is at least as new
+      if (sighting && sighting.date > statusDate) {
+        addAuto(battery, {
+          onBus: sighting.busName,
+          autoSource:
+            sighting.date === today ? "today_sighting" : "last_sighting",
+          asOf: sighting.date,
+        });
+      } else {
+        addAuto(battery, {
+          autoSource: "battery_status",
+          note: battery.status,
+          asOf: statusDate || today,
+        });
+      }
+      continue;
+    }
+
+    if (sighting) {
+      addAuto(battery, {
+        onBus: sighting.busName,
+        autoSource:
+          sighting.date === today ? "today_sighting" : "last_sighting",
+        asOf: sighting.date,
+      });
+      continue;
+    }
+
+    const prev = prevMarkByBattery.get(key);
+    if (prev) {
+      addAuto(battery, {
+        location: prev.location as IAttendanceLogRow["location"],
+        onBus: prev.onBus,
+        autoSource: "prev_attendance",
+        asOf: prev.date,
+      });
+    }
   }
 
   const rows = [...rowByBattery.values()];
@@ -203,7 +313,7 @@ export const createAttendanceLogService = async (
 
   return new ApiResponse(
     201,
-    `Attendance #${logId} submitted: ${seen} seen${auto > 0 ? ` (${auto} auto from buses)` : ""}, ${missing} missing`,
+    `Attendance #${logId} submitted: ${seen} seen${auto > 0 ? ` (${auto} auto)` : ""}, ${missing} missing`,
     log.toJSON(),
   );
 };
@@ -280,6 +390,9 @@ export const getAttendanceCompareService = async (
             location: r.location,
             onBus: r.onBus || undefined,
             auto: r.auto || undefined,
+            autoSource: r.autoSource,
+            asOf: r.asOf,
+            note: r.note || undefined,
             lastSeen: r.lastSeen,
           }
         : null;
@@ -293,8 +406,8 @@ export const getAttendanceCompareService = async (
       status = "unmarked";
     } else {
       // "where" is a yard location or a bus, whichever the row carries
-      const place = (v: { location?: string; onBus?: string }) =>
-        v.location ?? (v.onBus ? `bus:${v.onBus}` : "");
+      const place = (v: { location?: string; onBus?: string; note?: string }) =>
+        v.location ?? (v.onBus ? `bus:${v.onBus}` : (v.note ?? ""));
       const agree = marked.every(
         (v) =>
           v.status === marked[0].status &&
