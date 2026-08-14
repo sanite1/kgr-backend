@@ -38,6 +38,7 @@ export interface IBatteryAttendanceLog extends Document {
   date: string; // YYYY-MM-DD, stamped at submission
   rows: IAttendanceLogRow[]; // unmarked packs are simply absent
   totals: IAttendanceTotals;
+  autoChain?: boolean; // full evidence chain applied
   submittedBy: Types.ObjectId;
   submittedByName: string; // snapshot
   submittedByRole: string; // snapshot

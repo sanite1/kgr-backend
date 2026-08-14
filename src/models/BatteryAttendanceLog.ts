@@ -44,6 +44,8 @@ const batteryAttendanceLogSchema = new Schema<IBatteryAttendanceLog>(
       missing: { type: Number, required: true },
       unmarked: { type: Number, required: true },
     },
+    // true once the full auto-accounting chain has run on this log
+    autoChain: { type: Boolean, default: false },
     submittedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     submittedByName: { type: String, default: "" },
     submittedByRole: { type: String, default: "" },

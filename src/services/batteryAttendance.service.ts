@@ -37,49 +37,140 @@ const timeOfDayNow = (): "morning" | "afternoon" | "night" => {
   return "night";
 };
 
-// One-time backfill: logs submitted before auto-marking existed get
-// their auto rows filled in from their own day's sightings, so old logs
-// read the same as new ones. Processed logs carry totals.auto and are
-// never touched again. Fire-and-forget, safe to re-run.
-const backfillAutoMarks = async () => {
-  const logs = await BatteryAttendanceLog.find({
-    "totals.auto": { $exists: false },
+// One-time seeding: every log submitted before the full evidence chain
+// existed gets re-derived, anchored to its own date. Earlier system rows
+// are stripped and rebuilt; hand marks are never touched. Chronological
+// order lets each log borrow "prev roll call" marks from the logs before
+// it. Processed logs carry autoChain and are never touched again.
+const seedAutoChain = async () => {
+  const pending = await BatteryAttendanceLog.countDocuments({
+    autoChain: { $ne: true },
   });
-  if (logs.length === 0) return;
+  if (pending === 0) return;
+  const logs = await BatteryAttendanceLog.find().sort({ createdAt: 1 });
 
   const batteries = await Battery.find({ isActive: true });
-  for (const log of logs) {
-    const sightings = await sightingsOnDay(log.date);
-    const marked = new Set(log.rows.map((r) => String(r.battery)));
-    const autoTime = log.rows[0]?.timeOfDay ?? "morning";
-    let auto = 0;
-    for (const battery of batteries) {
-      if (marked.has(String(battery._id))) continue;
-      const sighting = sightings.get(canonBattery(battery.code));
-      if (!sighting) continue;
-      log.rows.push({
-        battery: battery._id as any,
-        batteryCode: battery.code,
-        status: "seen",
-        timeOfDay: autoTime,
-        onBus: sighting.busName,
-        auto: true,
-        lastSeen: "",
-      });
-      auto += 1;
+
+  // full status history per pack, oldest first, to know a pack's status
+  // as of any past date
+  const moves = await BatteryMovement.find({ action: "status" })
+    .sort({ createdAt: 1 })
+    .select("battery toStatus createdAt");
+  const movesByBattery = new Map<string, { date: string; status: string }[]>();
+  for (const m of moves) {
+    const key = String(m.battery);
+    if (!movesByBattery.has(key)) movesByBattery.set(key, []);
+    movesByBattery.get(key)!.push({
+      date: m.createdAt ? m.createdAt.toISOString().slice(0, 10) : "",
+      status: String(m.toStatus),
+    });
+  }
+  const statusAsOf = (batteryId: string, date: string, fallback: string) => {
+    let status = fallback;
+    let changed = "";
+    for (const m of movesByBattery.get(batteryId) ?? []) {
+      if (m.date > date) break;
+      status = m.status;
+      changed = m.date;
     }
-    const seen = log.rows.filter((r) => r.status === "seen").length;
-    log.totals = {
-      fleet: log.totals.fleet,
-      seen,
-      missing: log.rows.length - seen,
-      unmarked: Math.max(0, log.totals.fleet - log.rows.length),
-      auto,
-    };
-    await log.save();
+    return { status, changed };
+  };
+
+  // most recent hand-marked "seen" per pack from logs already processed
+  const prevManual = new Map<
+    string,
+    { location?: string; onBus?: string; date: string }
+  >();
+  const fourteenDaysBefore = (date: string) => {
+    const d = new Date(`${date}T12:00:00Z`);
+    d.setDate(d.getDate() - 14);
+    return d.toISOString().slice(0, 10);
+  };
+
+  for (const log of logs) {
+    if (!log.autoChain) {
+      const sightings = await lastSightingsMap(log.date);
+      const manualRows = log.rows.filter((r) => !r.auto);
+      const marked = new Set(manualRows.map((r) => String(r.battery)));
+      const autoTime = manualRows[0]?.timeOfDay ?? "morning";
+      const rows = [...manualRows];
+      let auto = 0;
+
+      for (const battery of batteries) {
+        const key = String(battery._id);
+        if (marked.has(key)) continue;
+        const sighting = sightings.get(canonBattery(battery.code));
+        const then = statusAsOf(key, log.date, battery.status);
+        const isParked =
+          then.status === "faulty" || then.status === "not_in_use";
+        const base = {
+          battery: battery._id as any,
+          batteryCode: battery.code,
+          status: "seen" as const,
+          timeOfDay: autoTime,
+          auto: true,
+          lastSeen: "",
+        };
+
+        if (isParked && !(sighting && sighting.date > then.changed)) {
+          rows.push({
+            ...base,
+            autoSource: "battery_status",
+            note: then.status,
+            asOf: then.changed || log.date,
+          });
+          auto += 1;
+          continue;
+        }
+        if (sighting) {
+          rows.push({
+            ...base,
+            onBus: sighting.busName,
+            autoSource:
+              sighting.date === log.date ? "today_sighting" : "last_sighting",
+            asOf: sighting.date,
+          });
+          auto += 1;
+          continue;
+        }
+        const prev = prevManual.get(key);
+        if (prev && prev.date >= fourteenDaysBefore(log.date)) {
+          rows.push({
+            ...base,
+            location: prev.location as IAttendanceLogRow["location"],
+            onBus: prev.onBus,
+            autoSource: "prev_attendance",
+            asOf: prev.date,
+          });
+          auto += 1;
+        }
+      }
+
+      const seen = rows.filter((r) => r.status === "seen").length;
+      log.rows = rows as any;
+      log.totals = {
+        fleet: log.totals.fleet,
+        seen,
+        missing: rows.length - seen,
+        unmarked: Math.max(0, log.totals.fleet - rows.length),
+        auto,
+      };
+      log.autoChain = true;
+      await log.save();
+    }
+
+    // this log's hand marks feed the logs after it
+    for (const r of log.rows) {
+      if (r.auto || r.status !== "seen") continue;
+      prevManual.set(String(r.battery), {
+        location: r.location,
+        onBus: r.onBus || undefined,
+        date: log.date,
+      });
+    }
   }
 };
-backfillAutoMarks().catch(() => {});
+seedAutoChain().catch(() => {});
 
 // GET /api/battery-attendance/fleet: the blank sheet for a new log.
 // Every registered pack, with today's checklist/receipt sighting and
@@ -306,6 +397,7 @@ export const createAttendanceLogService = async (
       unmarked: batteries.length - rows.length,
       auto,
     },
+    autoChain: true,
     submittedBy: requester.id,
     submittedByName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
     submittedByRole: requester.role,

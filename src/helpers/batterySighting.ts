@@ -66,12 +66,13 @@ export const sightingsOnDay = async (
   return mergeSightings(receipts, checks);
 };
 
-// canon(battery code) -> last place the pack was seen. On a same-day tie
-// the checklist wins: it is an eyes-on sighting at the gate.
-export const lastSightingsMap = async (): Promise<
-  Map<string, BatterySighting>
-> => {
-  const today = dayString();
+// canon(battery code) -> last place the pack was seen in the 7 days up
+// to asOf (default today). On a same-day tie the checklist wins: it is
+// an eyes-on sighting at the gate.
+export const lastSightingsMap = async (
+  asOf?: string,
+): Promise<Map<string, BatterySighting>> => {
+  const today = asOf || dayString();
   const since = new Date(`${today}T12:00:00Z`);
   since.setDate(since.getDate() - SIGHTING_LOOKBACK_DAYS);
   const sinceDay = since.toISOString().slice(0, 10);
