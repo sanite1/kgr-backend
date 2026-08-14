@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
@@ -7,6 +8,7 @@ import BatteryMovement from "../models/BatteryMovement";
 import BatteryClosingEntry from "../models/BatteryClosingEntry";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
+import logger from "../config/logger";
 import { nextSequence } from "../helpers/sequence";
 import {
   sightingsOnDay,
@@ -46,10 +48,11 @@ const seedAutoChain = async () => {
   const pending = await BatteryAttendanceLog.countDocuments({
     autoChain: { $ne: true },
   });
-  if (pending === 0) return;
+  if (pending === 0) return 0;
   const logs = await BatteryAttendanceLog.find().sort({ createdAt: 1 });
 
   const batteries = await Battery.find({ isActive: true });
+  let seeded = 0;
 
   // full status history per pack, oldest first, to know a pack's status
   // as of any past date
@@ -157,6 +160,7 @@ const seedAutoChain = async () => {
       };
       log.autoChain = true;
       await log.save();
+      seeded += 1;
     }
 
     // this log's hand marks feed the logs after it
@@ -169,8 +173,29 @@ const seedAutoChain = async () => {
       });
     }
   }
+  return seeded;
 };
-seedAutoChain().catch(() => {});
+// waiting for the DB connection matters: at module import mongoose only
+// buffers queries, and a slow connect would time the seeder out silently
+const runSeeder = () =>
+  seedAutoChain()
+    .then((n) =>
+      logger.info(
+        n > 0
+          ? `Attendance auto-chain: seeded ${n} previous log(s)`
+          : "Attendance auto-chain: nothing to seed",
+      ),
+    )
+    .catch((error: Error) =>
+      logger.error("Attendance auto-chain seeding failed", {
+        message: error.message,
+      }),
+    );
+if (mongoose.connection.readyState === 1) {
+  void runSeeder();
+} else {
+  mongoose.connection.once("connected", () => void runSeeder());
+}
 
 // GET /api/battery-attendance/fleet: the blank sheet for a new log.
 // Every registered pack, with today's checklist/receipt sighting and
