@@ -30,6 +30,7 @@ export const ACCESS_MODULES = [
   { key: "repairs", label: "Repairs" },
   { key: "buses", label: "Buses" },
   { key: "tracker_report", label: "Tracker Report" },
+  { key: "trackers", label: "Tracker Update" },
   { key: "trip_price", label: "Trip Price" },
   { key: "reports", label: "Reports" },
   { key: "expenditures", label: "Expenditures" },
@@ -57,6 +58,7 @@ const EVERYONE: ModuleKey[] = [
   "checklists",
   "buses",
   "tracker_report",
+  "trackers",
 ];
 
 // What each role gets until an admin customizes the individual user.
