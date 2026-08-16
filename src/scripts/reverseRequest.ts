@@ -1,7 +1,10 @@
-// One-off cleanup: request #1067 (Anderson plug 175 A x 1) was a test
-// approval. Delete it and reverse everything the approval wrote: put the
-// stock back, remove the stock movement, remove the booked expenditure.
-// The re-request lock dies with the request document itself.
+// Reverse a test/mistaken part request completely. Usage:
+//   npx ts-node src/scripts/reverseRequest.ts <requestId> <itemNameGuard>
+// The guard must appear in the request's item name (case-insensitive) or
+// the script aborts, so a typoed id cannot nuke the wrong request.
+// Reverses everything an approval wrote: restores the deducted stock,
+// removes the stock movement and the booked expenditure, then deletes
+// the request (its re-request lock dies with it).
 import dotenv from "dotenv";
 dotenv.config();
 import mongoose from "mongoose";
@@ -11,20 +14,30 @@ import StockMovement from "../models/StockMovement";
 import Expenditure from "../models/Expenditure";
 
 const run = async () => {
+  const requestId = Number(process.argv[2]);
+  const guard = process.argv[3] || "";
+  if (!requestId || !guard) {
+    console.log(
+      "Usage: npx ts-node src/scripts/reverseRequest.ts <requestId> <itemNameGuard>",
+    );
+    process.exit(1);
+  }
+
   await mongoose.connect(process.env.MONGODB_URI || "");
 
-  const request = await PartRequest.findOne({ requestId: 1067 });
+  const request = await PartRequest.findOne({ requestId });
   if (!request) {
-    console.log("Request #1067 not found; nothing to do.");
+    console.log(`Request #${requestId} not found; nothing to do.`);
     await mongoose.disconnect();
     return;
   }
-  if (!/anderson/i.test(request.itemName)) {
+  if (!request.itemName.toLowerCase().includes(guard.toLowerCase())) {
     console.log(
-      `Request #1067 is "${request.itemName}", not the Anderson plug. Aborting.`,
+      `Request #${requestId} is "${request.itemName}", which does not ` +
+        `match the guard "${guard}". Aborting.`,
     );
     await mongoose.disconnect();
-    return;
+    process.exit(1);
   }
   console.log(
     `Found #${request.requestId}: ${request.itemName} x ${request.quantity} ` +
@@ -56,7 +69,9 @@ const run = async () => {
   console.log(`Removed ${exp.deletedCount} expenditure record(s).`);
 
   await request.deleteOne();
-  console.log("Request #1067 deleted; its re-request lock is gone with it.");
+  console.log(
+    `Request #${request.requestId} deleted; its re-request lock is gone.`,
+  );
 
   await mongoose.disconnect();
 };
