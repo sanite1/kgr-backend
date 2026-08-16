@@ -3,11 +3,13 @@ import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import PartRequest from "../models/PartRequest";
 import InventoryItem from "../models/InventoryItem";
+import WarehouseItem from "../models/WarehouseItem";
 import StockMovement from "../models/StockMovement";
 import Bus from "../models/Bus";
 import User from "../models/User";
 import { nextSequence } from "../helpers/sequence";
 import { dayString } from "../helpers/day";
+import { canonBattery as canon } from "../helpers/batterySighting";
 import { alertIfLowStock } from "../helpers/lowStock";
 import { inBackground } from "../helpers/background";
 import { upsertSourceExpenditure } from "./expenditure.service";
@@ -115,17 +117,47 @@ export const getPartRequestsService = async (query: IPartRequestsQuery) => {
     filter.$or = or;
   }
 
-  const [requests, totalItems] = await Promise.all([
+  const [requests, totalItems, warehouseItems] = await Promise.all([
     PartRequest.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize)
       .populate("requestedBy decidedBy", "firstName lastName"),
     PartRequest.countDocuments(filter),
+    WarehouseItem.find({ isActive: true }).select("name quantityOnHand unit"),
   ]);
 
+  // live availability rides along so deciding never needs a trip to the
+  // inventory page. Inventory is an exact join by item id; the warehouse
+  // pool has independently typed names, so that one matches forgivingly
+  // and is only ever a hint.
+  const itemIds = [...new Set(requests.map((r) => String(r.item)))];
+  const items = await InventoryItem.find({ _id: { $in: itemIds } }).select(
+    "quantityOnHand unit isActive",
+  );
+  const stockById = new Map(items.map((i) => [String(i._id), i]));
+  const warehouseByCanon = new Map(
+    warehouseItems.map((w) => [canon(w.name), w]),
+  );
+
   return PaginatedResponse.build(
-    requests.map((r) => r.toJSON()),
+    requests.map((r) => {
+      const stock = stockById.get(String(r.item));
+      const wh = warehouseByCanon.get(canon(r.itemName));
+      return {
+        ...r.toJSON(),
+        stock: stock
+          ? {
+              onHand: stock.quantityOnHand,
+              unit: stock.unit,
+              isActive: stock.isActive,
+            }
+          : null,
+        warehouse: wh
+          ? { name: wh.name, onHand: wh.quantityOnHand, unit: wh.unit }
+          : null,
+      };
+    }),
     totalItems,
     page,
     pageSize,
