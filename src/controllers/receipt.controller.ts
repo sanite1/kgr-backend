@@ -7,6 +7,7 @@ import {
   checkInReceiptService,
   voidReceiptService,
   getReceiptSummaryService,
+  getReceiptSeriesService,
   getOutstandingSummaryService,
 } from "../services/receipt.service";
 import {
@@ -85,6 +86,19 @@ export const voidReceipt = async (
       req.body as IVoidReceiptRequest,
       String(req.user?._id),
     );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReceiptSeries = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getReceiptSeriesService(String(req.query.range || ""));
     sendResponse(res, result);
   } catch (error) {
     next(error);

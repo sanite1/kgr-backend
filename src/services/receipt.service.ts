@@ -329,6 +329,141 @@ const getPersonalSummary = async (
   });
 };
 
+// GET /api/receipts/series?range=: the dashboard chart at four zoom
+// levels. Buckets come back oldest first with ready-made labels.
+export const getReceiptSeriesService = async (range: string) => {
+  const MONTH_NAMES = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  const moneyGroup = {
+    expected: {
+      $sum: {
+        $cond: [
+          { $ne: ["$status", "void"] },
+          { $toDouble: "$expectedAmount" },
+          0,
+        ],
+      },
+    },
+    collected: {
+      $sum: {
+        $cond: [
+          { $eq: ["$status", "paid"] },
+          { $toDouble: { $ifNull: ["$amountPaid", "$expectedAmount"] } },
+          0,
+        ],
+      },
+    },
+  };
+  const today = dayString();
+
+  let buckets: { key: string; label: string }[] = [];
+  let rows: { _id: string; expected: number; collected: number }[] = [];
+  const bucketOf = new Map<string, string>(); // raw group key -> bucket key
+
+  if (range === "weekly") {
+    // eight weeks, each starting on Sunday like the daily view does
+    const now = new Date(`${today}T12:00:00Z`);
+    now.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    const starts: Date[] = [];
+    for (let i = 7; i >= 0; i -= 1) {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - i * 7);
+      starts.push(d);
+    }
+    buckets = starts.map((d) => ({
+      key: d.toISOString().slice(0, 10),
+      label: `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`,
+    }));
+    const since = buckets[0].key;
+    rows = await Receipt.aggregate([
+      { $match: { date: { $gte: since, $lte: today } } },
+      { $group: { _id: "$date", ...moneyGroup } },
+    ]);
+    const sinceMs = Date.parse(`${since}T00:00:00Z`);
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    for (const r of rows) {
+      const idx = Math.min(
+        buckets.length - 1,
+        Math.floor((Date.parse(`${r._id}T00:00:00Z`) - sinceMs) / weekMs),
+      );
+      bucketOf.set(r._id, buckets[idx].key);
+    }
+  } else if (range === "monthly") {
+    const now = new Date(`${today}T12:00:00Z`);
+    for (let i = 11; i >= 0; i -= 1) {
+      const d = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
+      );
+      const key = d.toISOString().slice(0, 7);
+      buckets.push({
+        key,
+        label: `${MONTH_NAMES[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`,
+      });
+    }
+    rows = await Receipt.aggregate([
+      { $match: { date: { $gte: `${buckets[0].key}-01` } } },
+      { $group: { _id: { $substrBytes: ["$date", 0, 7] }, ...moneyGroup } },
+    ]);
+    for (const r of rows) bucketOf.set(r._id, r._id);
+  } else if (range === "yearly") {
+    rows = await Receipt.aggregate([
+      { $group: { _id: { $substrBytes: ["$date", 0, 4] }, ...moneyGroup } },
+    ]);
+    const years = rows.map((r) => r._id).sort();
+    buckets = years.slice(-6).map((y) => ({ key: y, label: y }));
+    for (const y of years) bucketOf.set(y, y);
+  } else {
+    // daily: the last 7 days
+    const days = lastNDays(7);
+    const weekday = new Intl.DateTimeFormat("en-GB", {
+      weekday: "short",
+      timeZone: "UTC",
+    });
+    buckets = days.map((d) => ({
+      key: d,
+      label: weekday.format(new Date(`${d}T12:00:00Z`)),
+    }));
+    rows = await Receipt.aggregate([
+      { $match: { date: { $in: days } } },
+      { $group: { _id: "$date", ...moneyGroup } },
+    ]);
+    for (const r of rows) bucketOf.set(r._id, r._id);
+  }
+
+  const totals = new Map(
+    buckets.map((b) => [b.key, { expected: 0, collected: 0 }]),
+  );
+  for (const r of rows) {
+    const key = bucketOf.get(r._id);
+    const t = key ? totals.get(key) : undefined;
+    if (!t) continue;
+    t.expected += r.expected;
+    t.collected += r.collected;
+  }
+
+  return new ApiResponse(200, "Series retrieved successfully", {
+    range: ["weekly", "monthly", "yearly"].includes(range) ? range : "daily",
+    buckets: buckets.map((b) => ({
+      key: b.key,
+      label: b.label,
+      expectedAmount: String(totals.get(b.key)?.expected ?? 0),
+      collectedAmount: String(totals.get(b.key)?.collected ?? 0),
+    })),
+  });
+};
+
 // GET /api/receipts/summary: dashboard figures, scoped by role.
 // Managers/admin get the whole yard for one day, the running month and
 // a 7-day trend; everyone else gets only their own figures.

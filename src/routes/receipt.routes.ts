@@ -16,6 +16,7 @@ import {
   checkInReceipt,
   voidReceipt,
   getReceiptSummary,
+  getReceiptSeries,
   getOutstandingSummary,
 } from "../controllers/receipt.controller";
 
@@ -25,6 +26,7 @@ router.use(isAuthenticated);
 
 // static paths before param paths
 router.get("/summary", receiptSummaryValidation(), getReceiptSummary);
+router.get("/series", authorizeRoles("admin"), getReceiptSeries);
 router.get("/outstanding-summary", getOutstandingSummary);
 router.get("/", listReceiptsValidation(), getReceipts);
 // issuing and checking in are front desk work
