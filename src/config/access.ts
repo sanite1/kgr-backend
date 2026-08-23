@@ -35,6 +35,7 @@ export const ACCESS_MODULES = [
   { key: "trip_price", label: "Trip Price" },
   { key: "reports", label: "Reports" },
   { key: "expenditures", label: "Expenditures" },
+  { key: "finance", label: "Finance" },
   { key: "conversions", label: "Conversions" },
   { key: "partnerships", label: "Partnerships" },
   { key: "users", label: "Users" },
@@ -69,7 +70,8 @@ export const ROLE_DEFAULT_ACCESS: Record<UserRole, ModuleKey[]> = {
   cashier: [...EVERYONE, "generate", "paypoint", "nyp", "receipts"],
   storekeeper: [...EVERYONE, "inventory", "warehouse", "batteries", "repairs"],
   security: ["gate_pass", "checklists"], // the gate desk plus its tally
-  manager: MODULE_KEYS.filter((k) => k !== "users"),
+  // finance is the owner's view: admins only
+  manager: MODULE_KEYS.filter((k) => k !== "users" && k !== "finance"),
   admin: [...MODULE_KEYS],
 };
 
