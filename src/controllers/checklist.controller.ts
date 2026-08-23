@@ -5,6 +5,7 @@ import {
   createChecklistEntryService,
   getChecklistService,
   getChecklistCompareService,
+  getChecklistReceiptsCompareService,
   getChecklistDaysService,
   deleteChecklistEntryService,
 } from "../services/checklist.service";
@@ -60,6 +61,21 @@ export const getChecklistCompare = async (
   try {
     const result = await getChecklistCompareService(
       req.query as IChecklistCompareQuery,
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getChecklistReceiptsCompare = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getChecklistReceiptsCompareService(
+      req.query as unknown as IChecklistCompareQuery,
     );
     sendResponse(res, result);
   } catch (error) {

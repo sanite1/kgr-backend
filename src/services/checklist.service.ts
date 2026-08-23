@@ -2,6 +2,8 @@ import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
 import ChecklistEntry from "../models/ChecklistEntry";
+import Receipt from "../models/Receipt";
+import BatterySwap from "../models/BatterySwap";
 import User from "../models/User";
 import { dayString } from "../helpers/day";
 import { UserRole } from "../interfaces/helper.interface";
@@ -12,6 +14,7 @@ import {
   IChecklistCompareQuery,
   ICompareSide,
   CompareStatus,
+  ReceiptsCompareStatus,
   ChecklistKind,
   IChecklistEntry,
 } from "../interfaces/checklist.interface";
@@ -225,6 +228,214 @@ export const getChecklistCompareService = async (
       staffTrips: round(staffTrips),
     },
   });
+};
+
+// GET /api/checklists/compare-receipts?date=: both checklists against
+// the day's receipts, per bus. The receipt says what the bus paid for
+// (trips) and which battery it left with; the checklists say what the
+// gate actually saw. Buses are matched forgivingly ("A 2" = "a2"), and
+// a checklist battery that differs from the receipt is still fine when
+// a recorded swap explains it.
+export const getChecklistReceiptsCompareService = async (
+  query: IChecklistCompareQuery,
+) => {
+  const date = query.date || dayString();
+  const [entries, receipts, swaps] = await Promise.all([
+    ChecklistEntry.find({ date }),
+    Receipt.find({ date, status: { $ne: "void" } }).select(
+      "billId busNumber batteryName expectedTrips",
+    ),
+    BatterySwap.find({ date }).select(
+      "busNumber initialBatteryCode suppliedBatteryCode",
+    ),
+  ]);
+  const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const round = (n: number) => Math.round(n * 2) / 2;
+
+  type Side = {
+    batteries: string[];
+    trips: number;
+    sessions: string[];
+    addedByNames: string[];
+  };
+  const security = new Map<string, Side>();
+  const staff = new Map<string, Side>();
+  const busLabel = new Map<string, string>();
+  const sessionOrder = (a: string) => (a === "morning" ? 0 : 1);
+  const ordered = [...entries].sort(
+    (a, b) =>
+      sessionOrder(a.session) - sessionOrder(b.session) ||
+      (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0),
+  );
+  // one entry per session per list counts: a respelled duplicate ("A 21"
+  // and "A21" in the same session) must not double the trips
+  const seenSession = new Set<string>();
+  for (const e of ordered) {
+    const key = canon(e.busName);
+    if (!busLabel.has(key)) busLabel.set(key, e.busName);
+    const sessionKey = `${e.kind}|${key}|${e.session}`;
+    if (seenSession.has(sessionKey)) continue;
+    seenSession.add(sessionKey);
+    const map = e.kind === "security" ? security : staff;
+    const side = map.get(key) ?? {
+      batteries: [],
+      trips: 0,
+      sessions: [],
+      addedByNames: [],
+    };
+    side.batteries.push(e.batteryName);
+    side.trips += e.trips;
+    side.sessions.push(e.session);
+    if (e.addedByName && !side.addedByNames.includes(e.addedByName)) {
+      side.addedByNames.push(e.addedByName);
+    }
+    map.set(key, side);
+  }
+
+  const byReceipt = new Map<
+    string,
+    { bills: { billId: number; batteryName: string; trips: number }[] }
+  >();
+  for (const r of receipts) {
+    const key = canon(r.busNumber);
+    // the registered bus number is the cleanest label when we have it
+    busLabel.set(key, r.busNumber);
+    const rec = byReceipt.get(key) ?? { bills: [] };
+    rec.bills.push({
+      billId: r.billId,
+      batteryName: r.batteryName,
+      trips: r.expectedTrips,
+    });
+    byReceipt.set(key, rec);
+  }
+
+  // batteries a recorded swap put on (or took off) each bus today
+  const swapBatteries = new Map<string, Set<string>>();
+  for (const sw of swaps) {
+    const key = canon(sw.busNumber);
+    const set = swapBatteries.get(key) ?? new Set<string>();
+    set.add(canon(sw.suppliedBatteryCode));
+    set.add(canon(sw.initialBatteryCode));
+    swapBatteries.set(key, set);
+  }
+
+  const keys = [
+    ...new Set([...security.keys(), ...staff.keys(), ...byReceipt.keys()]),
+  ];
+
+  const rows = keys.map((key) => {
+    const busName = busLabel.get(key) || key;
+    const rec = byReceipt.get(key);
+    const receipt = rec
+      ? {
+          bills: rec.bills,
+          batteries: rec.bills.map((b) => b.batteryName).filter(Boolean),
+          trips: round(rec.bills.reduce((s, b) => s + b.trips, 0)),
+        }
+      : null;
+    const okBatteries = new Set<string>([
+      ...(receipt?.batteries ?? []).map(canon),
+      ...(swapBatteries.get(key) ?? []),
+    ]);
+
+    const judge = (side: Side | undefined) => {
+      if (!side) return null;
+      const batteryOk =
+        !receipt || side.batteries.every((b) => okBatteries.has(canon(b)));
+      const tripsVerdict: "ok" | "more" | "fewer" = !receipt
+        ? "ok"
+        : side.trips > receipt.trips
+          ? "more"
+          : side.trips < receipt.trips
+            ? "fewer"
+            : "ok";
+      return { ...side, trips: round(side.trips), batteryOk, tripsVerdict };
+    };
+    const sec = judge(security.get(key));
+    const stf = judge(staff.get(key));
+    const sides = [sec, stf].filter(Boolean) as NonNullable<typeof sec>[];
+    // "security logged 3, staff logged 2": only the lists that disagree
+    const logged = (verdict: "more" | "fewer") =>
+      [
+        sec && sec.tripsVerdict === verdict
+          ? `security logged ${sec.trips}`
+          : "",
+        stf && stf.tripsVerdict === verdict ? `staff logged ${stf.trips}` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+    let status: ReceiptsCompareStatus;
+    let note = "";
+    if (!receipt) {
+      status = "no_receipt";
+      note = "Logged at the gate but the bus never got a receipt";
+    } else if (sides.length === 0) {
+      status = "not_on_checklist";
+      note = `Receipt #${receipt.bills.map((b) => b.billId).join(", #")} but nobody logged the bus at the gate`;
+    } else if (sides.some((x) => x.tripsVerdict === "more")) {
+      status = "underpaid";
+      note = `Paid for ${receipt.trips} trip(s); ${logged("more")}`;
+    } else if (sides.some((x) => !x.batteryOk)) {
+      status = "battery_differs";
+      const who = [
+        sec && !sec.batteryOk ? `security saw ${sec.batteries.join("/")}` : "",
+        stf && !stf.batteryOk ? `staff saw ${stf.batteries.join("/")}` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      note = `Receipt battery ${receipt.batteries.join("/") || "-"}; ${who}`;
+    } else if (sides.some((x) => x.tripsVerdict === "fewer")) {
+      status = "fewer_trips";
+      note = `Paid for ${receipt.trips} trip(s); ${logged("fewer")}`;
+    } else {
+      status = "match";
+    }
+
+    return { busName, security: sec, staff: stf, receipt, status, note };
+  });
+
+  // trouble reads first: money leaks, then unlogged and wrong packs,
+  // then the day still in progress, then green
+  const rank: Record<ReceiptsCompareStatus, number> = {
+    no_receipt: 0,
+    underpaid: 0,
+    not_on_checklist: 1,
+    battery_differs: 1,
+    fewer_trips: 2,
+    match: 3,
+  };
+  rows.sort(
+    (a, b) =>
+      rank[a.status] - rank[b.status] ||
+      a.busName.localeCompare(b.busName, undefined, { numeric: true }),
+  );
+
+  const count = (st: ReceiptsCompareStatus) =>
+    rows.filter((r) => r.status === st).length;
+  return new ApiResponse(
+    200,
+    "Checklist vs receipts comparison retrieved successfully",
+    {
+      date,
+      rows,
+      totals: {
+        matched: count("match"),
+        underpaid: count("underpaid"),
+        noReceipt: count("no_receipt"),
+        notOnChecklist: count("not_on_checklist"),
+        batteryDiffers: count("battery_differs"),
+        fewerTrips: count("fewer_trips"),
+        receiptTrips: round(
+          rows.reduce((s, r) => s + (r.receipt?.trips ?? 0), 0),
+        ),
+        securityTrips: round(
+          rows.reduce((s, r) => s + (r.security?.trips ?? 0), 0),
+        ),
+        staffTrips: round(rows.reduce((s, r) => s + (r.staff?.trips ?? 0), 0)),
+      },
+    },
+  );
 };
 
 // GET /api/checklists/days: past sheets per list, newest first (managers)

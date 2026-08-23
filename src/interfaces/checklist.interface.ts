@@ -53,3 +53,28 @@ export interface ICompareSide {
 // yellow: only one list has it
 export type CompareStatus =
   "match" | "mismatch" | "security_only" | "staff_only";
+
+// The checklist against the receipts: per bus per day, the receipt is
+// the money record and both checklists are the eyes at the gate.
+export type ReceiptsCompareStatus =
+  | "match"
+  | "underpaid" // checklist logged more trips than were paid for
+  | "no_receipt" // on a checklist, but the bus never got a ticket
+  | "not_on_checklist" // ticketed, but nobody logged it at the gate
+  | "battery_differs" // checklist battery is not the receipt's (no swap)
+  | "fewer_trips"; // checklist logged fewer trips than were paid for
+
+export interface IReceiptsCompareSide {
+  batteries: string[]; // as typed, one per session
+  trips: number; // summed over the sessions logged
+  sessions: string[];
+  addedByNames: string[];
+  batteryOk: boolean;
+  tripsVerdict: "ok" | "more" | "fewer";
+}
+
+export interface IReceiptsCompareReceipt {
+  bills: { billId: number; batteryName: string; trips: number }[];
+  batteries: string[];
+  trips: number;
+}

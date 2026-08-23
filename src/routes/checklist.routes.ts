@@ -14,6 +14,7 @@ import {
   createChecklistEntry,
   getChecklist,
   getChecklistCompare,
+  getChecklistReceiptsCompare,
   getChecklistDays,
   deleteChecklistEntry,
 } from "../controllers/checklist.controller";
@@ -35,6 +36,13 @@ router.get(
   authorizeRoles(...MANAGERS),
   checklistCompareValidation(),
   getChecklistCompare,
+);
+// the checklists against the day's receipts: management's view too
+router.get(
+  "/compare-receipts",
+  authorizeRoles(...MANAGERS),
+  checklistCompareValidation(),
+  getChecklistReceiptsCompare,
 );
 router.get("/", listChecklistValidation(), getChecklist);
 router.post("/", createChecklistEntryValidation(), createChecklistEntry);
