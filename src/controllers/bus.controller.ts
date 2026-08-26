@@ -3,6 +3,7 @@ import { sendResponse } from "../helpers/sendResponse";
 import {
   createBusService,
   getBusesService,
+  getBusMaintenanceService,
   getBusService,
   getBusPerformanceService,
   getBusTripsService,
@@ -38,7 +39,10 @@ export const getBuses = async (
   next: NextFunction,
 ) => {
   try {
-    const result = await getBusesService(req.query as IBusesQuery);
+    const result = await getBusesService(
+      req.query as IBusesQuery,
+      String(req.user?.role),
+    );
     sendResponse(res, result);
   } catch (error) {
     next(error);
@@ -58,6 +62,19 @@ export const getBus = async (
   }
 };
 
+export const getBusMaintenance = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await getBusMaintenanceService(req.params.id);
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getBusPerformance = async (
   req: Request,
   res: Response,
@@ -66,6 +83,7 @@ export const getBusPerformance = async (
   try {
     const result = await getBusPerformanceService(
       req.query as IBusPerformanceQuery,
+      String(req.user?.role),
     );
     sendResponse(res, result);
   } catch (error) {

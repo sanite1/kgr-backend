@@ -17,6 +17,7 @@ import {
   getBus,
   getBusPerformance,
   getBusTrips,
+  getBusMaintenance,
   updateBus,
 } from "../controllers/bus.controller";
 
@@ -37,6 +38,13 @@ router.post(
 // static paths before the bare param path
 router.get("/performance", busPerformanceValidation(), getBusPerformance);
 router.get("/:id/trips", busTripsValidation(), getBusTrips);
+// the full maintenance story is management's view (it carries money)
+router.get(
+  "/:id/maintenance",
+  authorizeRoles(...MANAGERS),
+  getBusValidation(),
+  getBusMaintenance,
+);
 router.get("/:id", getBusValidation(), getBus);
 router.patch(
   "/:id",
