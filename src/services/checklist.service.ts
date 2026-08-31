@@ -9,6 +9,7 @@ import { dayString } from "../helpers/day";
 import { UserRole } from "../interfaces/helper.interface";
 import {
   ICreateChecklistEntry,
+  IUpdateChecklistEntry,
   IChecklistQuery,
   IChecklistDaysQuery,
   IChecklistCompareQuery,
@@ -141,6 +142,47 @@ export const getChecklistService = async (
   });
 };
 
+// PATCH /api/checklists/:id (admin): correct a wrong battery or trip
+// count without losing the original. Every change lands in the entry's
+// own edit history, so what the gate first wrote is always recoverable.
+export const updateChecklistEntryService = async (
+  id: string,
+  payload: IUpdateChecklistEntry,
+  requester: { id: string; role: string },
+) => {
+  const entry = await ChecklistEntry.findById(id);
+  if (!entry) throw new ApiError(404, "Entry not found");
+
+  const nextBattery =
+    payload.batteryName !== undefined
+      ? payload.batteryName.trim().toUpperCase()
+      : entry.batteryName;
+  const nextTrips = payload.trips ?? entry.trips;
+  if (nextBattery === entry.batteryName && nextTrips === entry.trips) {
+    throw new ApiError(400, "Nothing changed");
+  }
+  if (!nextBattery) throw new ApiError(400, "Battery name cannot be empty");
+
+  const user = await User.findById(requester.id);
+  entry.edits.push({
+    at: new Date(),
+    by: requester.id as any,
+    byName: user ? `${user.firstName} ${user.lastName}`.trim() : "",
+    note: payload.note?.trim() || "",
+    from: { batteryName: entry.batteryName, trips: entry.trips },
+    to: { batteryName: nextBattery, trips: nextTrips },
+  });
+  entry.batteryName = nextBattery;
+  entry.trips = nextTrips;
+  await entry.save();
+
+  return new ApiResponse(
+    200,
+    `${entry.busName} (${entry.session}) corrected`,
+    entry.toJSON(),
+  );
+};
+
 // GET /api/checklists/compare?date=: the two lists laid side by side,
 // matched by bus and session (managers only, enforced at the route).
 // Both agree on battery and trips: match. Both wrote it, details differ:
@@ -152,10 +194,12 @@ export const getChecklistCompareService = async (
   const entries = await ChecklistEntry.find({ date });
 
   const side = (e: IChecklistEntry): ICompareSide => ({
+    _id: String(e._id),
     batteryName: e.batteryName,
     trips: e.trips,
     addedByName: e.addedByName,
     createdAt: e.createdAt,
+    edits: e.edits ?? [],
   });
 
   // people type the same thing differently: "A 2" and "a2", "Muh'd 12"
@@ -252,11 +296,19 @@ export const getChecklistReceiptsCompareService = async (
   const canon = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const round = (n: number) => Math.round(n * 2) / 2;
 
+  type SideEntry = {
+    _id: string;
+    session: string;
+    batteryName: string;
+    trips: number;
+    edits: IChecklistEntry["edits"];
+  };
   type Side = {
     batteries: string[];
     trips: number;
     sessions: string[];
     addedByNames: string[];
+    entries: SideEntry[];
   };
   const security = new Map<string, Side>();
   const staff = new Map<string, Side>();
@@ -282,10 +334,18 @@ export const getChecklistReceiptsCompareService = async (
       trips: 0,
       sessions: [],
       addedByNames: [],
+      entries: [],
     };
     side.batteries.push(e.batteryName);
     side.trips += e.trips;
     side.sessions.push(e.session);
+    side.entries.push({
+      _id: String(e._id),
+      session: e.session,
+      batteryName: e.batteryName,
+      trips: e.trips,
+      edits: e.edits ?? [],
+    });
     if (e.addedByName && !side.addedByNames.includes(e.addedByName)) {
       side.addedByNames.push(e.addedByName);
     }

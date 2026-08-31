@@ -6,6 +6,15 @@ import { Document, Types } from "mongoose";
 export type ChecklistKind = "security" | "admin";
 export type ChecklistSession = "morning" | "evening";
 
+export interface IChecklistEdit {
+  at: Date;
+  by: Types.ObjectId;
+  byName: string;
+  note: string;
+  from: { batteryName: string; trips: number };
+  to: { batteryName: string; trips: number };
+}
+
 export interface IChecklistEntry extends Document {
   date: string; // Lagos business day
   kind: ChecklistKind;
@@ -15,6 +24,7 @@ export interface IChecklistEntry extends Document {
   trips: number; // 1 | 1.5 | 2 | 3
   addedBy: Types.ObjectId;
   addedByName: string;
+  edits: IChecklistEdit[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -43,10 +53,12 @@ export interface IChecklistCompareQuery {
 
 // one side of a compared row: what one list wrote for a bus and session
 export interface ICompareSide {
+  _id: string;
   batteryName: string;
   trips: number;
   addedByName: string;
   createdAt: Date | undefined;
+  edits: IChecklistEdit[];
 }
 
 // green: both lists agree; red: both wrote it but differently;
@@ -77,4 +89,10 @@ export interface IReceiptsCompareReceipt {
   bills: { billId: number; batteryName: string; trips: number }[];
   batteries: string[];
   trips: number;
+}
+
+export interface IUpdateChecklistEntry {
+  batteryName?: string;
+  trips?: number;
+  note?: string;
 }

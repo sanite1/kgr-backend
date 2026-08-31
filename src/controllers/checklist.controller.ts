@@ -6,11 +6,13 @@ import {
   getChecklistService,
   getChecklistCompareService,
   getChecklistReceiptsCompareService,
+  updateChecklistEntryService,
   getChecklistDaysService,
   deleteChecklistEntryService,
 } from "../services/checklist.service";
 import {
   ICreateChecklistEntry,
+  IUpdateChecklistEntry,
   IChecklistQuery,
   IChecklistCompareQuery,
   IChecklistDaysQuery,
@@ -76,6 +78,23 @@ export const getChecklistReceiptsCompare = async (
   try {
     const result = await getChecklistReceiptsCompareService(
       req.query as unknown as IChecklistCompareQuery,
+    );
+    sendResponse(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateChecklistEntry = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const result = await updateChecklistEntryService(
+      req.params.id,
+      req.body as IUpdateChecklistEntry,
+      { id: String(req.user?._id), role: String(req.user?.role) },
     );
     sendResponse(res, result);
   } catch (error) {

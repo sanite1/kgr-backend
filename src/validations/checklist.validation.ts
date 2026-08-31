@@ -62,3 +62,19 @@ export const checklistEntryIdValidation = () =>
     { context: true },
     { abortEarly: false },
   );
+
+export const updateChecklistEntryValidation = () =>
+  validate(
+    {
+      params: Joi.object({
+        id: Joi.string().hex().length(24).required(),
+      }),
+      body: Joi.object({
+        batteryName: Joi.string().max(60),
+        trips: Joi.number().valid(1, 1.5, 2, 2.5, 3),
+        note: Joi.string().max(300).allow(""),
+      }).or("batteryName", "trips"),
+    },
+    { context: true },
+    { abortEarly: false },
+  );

@@ -9,6 +9,7 @@ import {
   checklistCompareValidation,
   checklistDaysValidation,
   checklistEntryIdValidation,
+  updateChecklistEntryValidation,
 } from "../validations/checklist.validation";
 import {
   createChecklistEntry,
@@ -17,6 +18,7 @@ import {
   getChecklistReceiptsCompare,
   getChecklistDays,
   deleteChecklistEntry,
+  updateChecklistEntry,
 } from "../controllers/checklist.controller";
 
 const router = Router();
@@ -46,6 +48,13 @@ router.get(
 );
 router.get("/", listChecklistValidation(), getChecklist);
 router.post("/", createChecklistEntryValidation(), createChecklistEntry);
+// corrections are the admin's pen alone, and every stroke is recorded
+router.patch(
+  "/:id",
+  authorizeRoles("admin"),
+  updateChecklistEntryValidation(),
+  updateChecklistEntry,
+);
 router.delete("/:id", checklistEntryIdValidation(), deleteChecklistEntry);
 
 export default router;
