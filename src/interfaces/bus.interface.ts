@@ -51,6 +51,7 @@ export interface IBusPerformanceQuery {
   from?: string; // YYYY-MM-DD, inclusive
   to?: string; // YYYY-MM-DD, inclusive
   band?: PerformanceBand | "all";
+  sort?: "number" | "rank";
 }
 
 // one bus's trip history, straight from its generated receipts

@@ -50,6 +50,7 @@ export const busPerformanceValidation = () =>
         from: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
         to: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
         band: Joi.string().valid("all", "good", "average", "under", "idle"),
+        sort: Joi.string().valid("number", "rank"),
       }),
     },
     { context: true },

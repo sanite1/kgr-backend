@@ -252,8 +252,9 @@ export const getBusPerformanceService = async (
     if (query.to) receiptMatch.date.$lte = query.to;
   }
 
-  const [buses, agg] = await Promise.all([
+  const [buses, allActiveIds, agg] = await Promise.all([
     Bus.find(busFilter).sort({ number: 1 }),
+    Bus.find({ isActive: true }).distinct("_id"),
     Receipt.aggregate([
       { $match: receiptMatch },
       {
@@ -324,6 +325,29 @@ export const getBusPerformanceService = async (
     }
   }
 
+  // rank by trips across the whole active fleet for the period, never
+  // the searched or filtered subset, so a rank means the same thing on
+  // every page and on the bus's own page. Competition style: two buses
+  // tied on 12 trips are both 3rd and the next is 5th. No trips, no rank.
+  const activeSet = new Set(allActiveIds.map((id: any) => String(id)));
+  const ranked = agg
+    .map((a: any) => ({ id: String(a._id), trips: round(a.trips) }))
+    .filter((a) => a.trips > 0 && activeSet.has(a.id))
+    .sort((a, b) => b.trips - a.trips);
+  const rankByBus = new Map<string, number>();
+  ranked.forEach((r, i) => {
+    const rank =
+      i > 0 && ranked[i - 1].trips === r.trips
+        ? rankByBus.get(ranked[i - 1].id)!
+        : i + 1;
+    rankByBus.set(r.id, rank);
+  });
+  const rankedRows = rows.map((r) => ({
+    ...r,
+    rank: rankByBus.get(String(r._id)) ?? null,
+    rankOf: ranked.length,
+  }));
+
   const summary = {
     minTripsPerDay: MIN_TRIPS_PER_DAY,
     fleetTrips: round(rows.reduce((sum, r) => sum + r.trips, 0)),
@@ -335,7 +359,19 @@ export const getBusPerformanceService = async (
   };
 
   const band = query.band && query.band !== "all" ? query.band : null;
-  const filtered = band ? rows.filter((r) => r.band === band) : rows;
+  const filtered = band
+    ? rankedRows.filter((r) => r.band === band)
+    : rankedRows;
+  if (query.sort === "rank") {
+    // best first; buses without a rank keep their bus-number order at
+    // the bottom
+    filtered.sort(
+      (a, b) =>
+        (a.rank ?? Number.MAX_SAFE_INTEGER) -
+          (b.rank ?? Number.MAX_SAFE_INTEGER) ||
+        a.number.localeCompare(b.number, undefined, { numeric: true }),
+    );
+  }
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return new ApiResponse(200, "Fleet performance retrieved successfully", {
@@ -429,6 +465,33 @@ export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
     receipts: d.receipts as number,
   }));
 
+  // where this bus stands in the fleet for the same period
+  const fleetMatch: Record<string, any> = { status: { $ne: "void" } };
+  if (rangeFilter.date) fleetMatch.date = rangeFilter.date;
+  const fleetAgg = await Receipt.aggregate([
+    { $match: fleetMatch },
+    {
+      $group: {
+        _id: "$bus",
+        trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+      },
+    },
+  ]);
+  const fleetTrips = fleetAgg
+    .map((a: any) => ({ id: String(a._id), trips: round(a.trips) }))
+    .filter((a) => a.trips > 0)
+    .sort((a, b) => b.trips - a.trips);
+  let rank: number | null = null;
+  for (let i = 0; i < fleetTrips.length; i += 1) {
+    if (i > 0 && fleetTrips[i].trips === fleetTrips[i - 1].trips) continue;
+    // every bus tied on this trip count shares rank i + 1
+    const tied = fleetTrips.filter((f) => f.trips === fleetTrips[i].trips);
+    if (tied.some((f) => f.id === String(bus._id))) {
+      rank = i + 1;
+      break;
+    }
+  }
+
   return new ApiResponse(200, "Bus trips retrieved successfully", {
     bus: bus.toJSON(),
     summary: {
@@ -437,6 +500,7 @@ export const getBusTripsService = async (id: string, query: IBusTripsQuery) => {
       allTime: pick(allAgg),
       range: pick(rangeAgg),
     },
+    rank: { position: rank, of: fleetTrips.length },
     minTripsPerDay: MIN_TRIPS_PER_DAY,
     days,
     lowTripDays: days.filter((d) => d.trips < MIN_TRIPS_PER_DAY).length,
