@@ -252,9 +252,19 @@ export const getBusPerformanceService = async (
     if (query.to) receiptMatch.date.$lte = query.to;
   }
 
-  const [buses, allActiveIds, agg] = await Promise.all([
+  const [buses, allActiveIds, historyAgg, agg] = await Promise.all([
     Bus.find(busFilter).sort({ number: 1 }),
     Bus.find({ isActive: true }).distinct("_id"),
+    // the tie-breaker: a bus's whole past record
+    Receipt.aggregate([
+      { $match: { status: { $ne: "void" } } },
+      {
+        $group: {
+          _id: "$bus",
+          trips: { $sum: { $ifNull: ["$expectedTrips", 0] } },
+        },
+      },
+    ]),
     Receipt.aggregate([
       { $match: receiptMatch },
       {
@@ -329,16 +339,26 @@ export const getBusPerformanceService = async (
   // the searched or filtered subset, so a rank means the same thing on
   // every page and on the bus's own page. Competition style: two buses
   // tied on 12 trips are both 3rd and the next is 5th. No trips, no rank.
+  // The period decides; a tie on the period is broken by the past
+  // record (all-time trips). Only buses equal on both share a rank.
   const activeSet = new Set(allActiveIds.map((id: any) => String(id)));
+  const history = new Map<string, number>(
+    historyAgg.map((a: any) => [String(a._id), round(a.trips)]),
+  );
   const ranked = agg
-    .map((a: any) => ({ id: String(a._id), trips: round(a.trips) }))
+    .map((a: any) => ({
+      id: String(a._id),
+      trips: round(a.trips),
+      past: history.get(String(a._id)) ?? 0,
+    }))
     .filter((a) => a.trips > 0 && activeSet.has(a.id))
-    .sort((a, b) => b.trips - a.trips);
+    .sort((a, b) => b.trips - a.trips || b.past - a.past);
   const rankByBus = new Map<string, number>();
   ranked.forEach((r, i) => {
+    const prev = ranked[i - 1];
     const rank =
-      i > 0 && ranked[i - 1].trips === r.trips
-        ? rankByBus.get(ranked[i - 1].id)!
+      i > 0 && prev.trips === r.trips && prev.past === r.past
+        ? rankByBus.get(prev.id)!
         : i + 1;
     rankByBus.set(r.id, rank);
   });
