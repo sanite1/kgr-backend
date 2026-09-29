@@ -50,6 +50,7 @@ export interface IMonthBreakdown {
   month: string;
   revenue: number;
   expenses: number;
+  purchases: number; // Money Book spending
   salary: number;
   profit: number;
   buyDown: number;

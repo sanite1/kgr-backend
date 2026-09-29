@@ -5,6 +5,8 @@ import ApiError from "../errors/apiError";
 import FinanceEntry from "../models/FinanceEntry";
 import Receipt from "../models/Receipt";
 import Expenditure from "../models/Expenditure";
+import MoneyBookEntry from "../models/MoneyBookEntry";
+import { materializeRecurringUpTo } from "./moneyBook.service";
 import User from "../models/User";
 import logger from "../config/logger";
 import { dayString } from "../helpers/day";
@@ -44,7 +46,7 @@ const money = (n: number) => Math.round(n * 100) / 100;
 // collected revenue per day and completed expenditures per day, summed
 // over [from, to] as YYYY-MM-DD strings
 const dailyMoney = async (from: string, to: string) => {
-  const [rev, exp] = await Promise.all([
+  const [rev, exp, buy] = await Promise.all([
     Receipt.aggregate([
       { $match: { date: { $gte: from, $lte: to }, status: "paid" } },
       {
@@ -62,6 +64,12 @@ const dailyMoney = async (from: string, to: string) => {
       { $match: { date: { $gte: from, $lte: to }, status: "completed" } },
       { $group: { _id: "$date", amount: { $sum: { $toDouble: "$amount" } } } },
     ]),
+    // purchases written in the Money Book are costs too, kept as their
+    // own line so the two books stay tellable apart
+    MoneyBookEntry.aggregate([
+      { $match: { date: { $gte: from, $lte: to }, type: "expense" } },
+      { $group: { _id: "$date", amount: { $sum: { $toDouble: "$amount" } } } },
+    ]),
   ]);
   return {
     revenueByDay: new Map<string, number>(
@@ -69,6 +77,9 @@ const dailyMoney = async (from: string, to: string) => {
     ),
     expensesByDay: new Map<string, number>(
       exp.map((r: any) => [r._id, r.amount]),
+    ),
+    purchasesByDay: new Map<string, number>(
+      buy.map((r: any) => [r._id, r.amount]),
     ),
   };
 };
@@ -84,13 +95,14 @@ export const monthBreakdowns = async (
   const sorted = [...months].sort();
   const from = `${sorted[0]}-01`;
   const to = `${sorted[sorted.length - 1]}-31`;
-  const [{ revenueByDay, expensesByDay }, entries] = await Promise.all([
-    dailyMoney(from, to),
-    FinanceEntry.find({
-      kind: { $in: ["salary", "repayment"] },
-      month: { $in: months },
-    }),
-  ]);
+  const [{ revenueByDay, expensesByDay, purchasesByDay }, entries] =
+    await Promise.all([
+      dailyMoney(from, to),
+      FinanceEntry.find({
+        kind: { $in: ["salary", "repayment"] },
+        month: { $in: months },
+      }),
+    ]);
 
   const revenue = new Map<string, number>();
   const expenses = new Map<string, number>();
@@ -99,6 +111,10 @@ export const monthBreakdowns = async (
   }
   for (const [d, a] of expensesByDay) {
     expenses.set(monthKey(d), (expenses.get(monthKey(d)) ?? 0) + a);
+  }
+  const purchases = new Map<string, number>();
+  for (const [d, a] of purchasesByDay) {
+    purchases.set(monthKey(d), (purchases.get(monthKey(d)) ?? 0) + a);
   }
   const salary = new Map<string, number>();
   const buyDown = new Map<string, number>();
@@ -114,13 +130,15 @@ export const monthBreakdowns = async (
   return months.map((m) => {
     const r = revenue.get(m) ?? 0;
     const x = expenses.get(m) ?? 0;
+    const p = purchases.get(m) ?? 0;
     const s = salary.get(m) ?? 0;
-    const profit = r - x - s;
+    const profit = r - x - p - s;
     const b = buyDown.get(m) ?? 0;
     return {
       month: m,
       revenue: money(r),
       expenses: money(x),
+      purchases: money(p),
       salary: money(s),
       profit: money(profit),
       buyDown: money(b),
@@ -145,12 +163,15 @@ const lastMonths = (n: number): string[] => {
 // the month every record began: the earliest receipt, expenditure or
 // finance entry, so "retained profit" covers the whole history
 const earliestMonth = async (): Promise<string> => {
-  const [r, x, f] = await Promise.all([
+  const [r, x, f, b] = await Promise.all([
     Receipt.findOne().sort({ date: 1 }).select("date"),
     Expenditure.findOne().sort({ date: 1 }).select("date"),
     FinanceEntry.findOne().sort({ date: 1 }).select("date"),
+    MoneyBookEntry.findOne().sort({ date: 1 }).select("date"),
   ]);
-  const dates = [r?.date, x?.date, f?.date].filter(Boolean) as string[];
+  const dates = [r?.date, x?.date, f?.date, b?.date].filter(
+    Boolean,
+  ) as string[];
   return (dates.sort()[0] ?? dayString()).slice(0, 7);
 };
 
@@ -171,8 +192,9 @@ const monthsBetween = (from: string, to: string): string[] => {
 
 // GET /api/finance/overview: the tiles, this month's formula, and the
 // up-or-down verdict
-export const getFinanceOverviewService = async () => {
+export const getFinanceOverviewService = async (byId: string) => {
   const thisMonth = dayString().slice(0, 7);
+  await materializeRecurringUpTo(thisMonth, byId);
   const first = await earliestMonth();
   const allMonths = monthsBetween(first, thisMonth);
 
@@ -255,8 +277,9 @@ export const getFinanceOverviewService = async () => {
 };
 
 // GET /api/finance/months?limit=12
-export const getFinanceMonthsService = async (limit: number) => {
+export const getFinanceMonthsService = async (limit: number, byId: string) => {
   const months = lastMonths(Math.min(36, Math.max(1, limit || 12)));
+  await materializeRecurringUpTo(months[months.length - 1], byId);
   const rows = await monthBreakdowns(months);
   return new ApiResponse(200, "Finance months retrieved successfully", {
     months: rows.reverse(),
@@ -410,7 +433,11 @@ export const deleteFinanceEntryService = async (id: string) => {
 // is revenue vs costs (expenditures + salaries prorated by day) with
 // profit on top; debt is the balance outstanding at the end of each
 // bucket with what was repaid inside it.
-export const getFinanceSeriesService = async (rawRange: string) => {
+export const getFinanceSeriesService = async (
+  rawRange: string,
+  byId: string,
+) => {
+  await materializeRecurringUpTo(dayString().slice(0, 7), byId);
   const firstEntry = await FinanceEntry.findOne()
     .sort({ date: 1 })
     .select("date");
@@ -429,17 +456,20 @@ export const getFinanceSeriesService = async (rawRange: string) => {
   const from = buckets[0].start;
   const to = buckets[buckets.length - 1].end;
 
-  const [{ revenueByDay, expensesByDay }, salaries, debtEntries] =
-    await Promise.all([
-      dailyMoney(from, to),
-      FinanceEntry.find({
-        kind: "salary",
-        month: { $gte: monthKey(from), $lte: monthKey(to) },
-      }),
-      FinanceEntry.find({
-        kind: { $in: ["loan", "other_debt", "repayment"] },
-      }).sort({ date: 1 }),
-    ]);
+  const [
+    { revenueByDay, expensesByDay, purchasesByDay },
+    salaries,
+    debtEntries,
+  ] = await Promise.all([
+    dailyMoney(from, to),
+    FinanceEntry.find({
+      kind: "salary",
+      month: { $gte: monthKey(from), $lte: monthKey(to) },
+    }),
+    FinanceEntry.find({
+      kind: { $in: ["loan", "other_debt", "repayment"] },
+    }).sort({ date: 1 }),
+  ]);
 
   const perf = new Map(buckets.map((b) => [b.key, { revenue: 0, costs: 0 }]));
   for (const [d, a] of revenueByDay) {
@@ -447,6 +477,10 @@ export const getFinanceSeriesService = async (rawRange: string) => {
     if (k) perf.get(k)!.revenue += a;
   }
   for (const [d, a] of expensesByDay) {
+    const k = bucketKeyFor(buckets, d);
+    if (k) perf.get(k)!.costs += a;
+  }
+  for (const [d, a] of purchasesByDay) {
     const k = bucketKeyFor(buckets, d);
     if (k) perf.get(k)!.costs += a;
   }

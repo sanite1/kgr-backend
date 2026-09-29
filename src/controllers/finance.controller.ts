@@ -25,9 +25,11 @@ const wrap =
     }
   };
 
-export const getFinanceOverview = wrap(() => getFinanceOverviewService());
+export const getFinanceOverview = wrap((req) =>
+  getFinanceOverviewService(String(req.user?._id)),
+);
 export const getFinanceMonths = wrap((req) =>
-  getFinanceMonthsService(Number(req.query.limit) || 12),
+  getFinanceMonthsService(Number(req.query.limit) || 12, String(req.user?._id)),
 );
 export const getFinanceEntries = wrap((req) =>
   getFinanceEntriesService(req.query as IFinanceEntriesQuery),
@@ -45,5 +47,5 @@ export const deleteFinanceEntry = wrap((req) =>
   deleteFinanceEntryService(req.params.id),
 );
 export const getFinanceSeries = wrap((req) =>
-  getFinanceSeriesService(String(req.query.range || "")),
+  getFinanceSeriesService(String(req.query.range || ""), String(req.user?._id)),
 );
