@@ -49,8 +49,7 @@ export interface IFinanceEntriesQuery {
 export interface IMonthBreakdown {
   month: string;
   revenue: number;
-  expenses: number;
-  purchases: number; // Money Book spending
+  purchases: number; // Money Book spending, the only cost book Finance reads
   salary: number;
   profit: number;
   buyDown: number;
