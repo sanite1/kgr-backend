@@ -38,6 +38,7 @@ export const ACCESS_MODULES = [
   { key: "finance", label: "Finance" },
   { key: "assets", label: "Company Assets" },
   { key: "growth_planner", label: "Growth Planner" },
+  { key: "goal_tracker", label: "Goal Tracker" },
   { key: "money_book", label: "Money Book" },
   { key: "conversions", label: "Conversions" },
   { key: "partnerships", label: "Partnerships" },
