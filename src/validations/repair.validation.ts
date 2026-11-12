@@ -19,6 +19,7 @@ export const createRepairJobValidation = () =>
         busId: Joi.string().hex().length(24),
         batteryId: Joi.string().hex().length(24),
         parts: Joi.array().items(partLine).max(50),
+        laborCost: Joi.string().pattern(moneyPattern),
       }).or("busId", "batteryId"),
     },
     { context: true },

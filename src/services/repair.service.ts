@@ -132,6 +132,8 @@ export const createRepairJobService = async (
     amount: money(quantity * Number(item.unitCost)),
   }));
   const partsCost = money(sumParts(partLines));
+  // a hub job done by an outside mechanic has no stock line, only a bill
+  const laborCost = money(Number(payload.laborCost || 0));
 
   const job = await RepairJob.create({
     jobId,
@@ -143,8 +145,8 @@ export const createRepairJobService = async (
     batteryCode: battery?.code,
     parts: partLines,
     partsCost,
-    laborCost: "0",
-    totalCost: partsCost,
+    laborCost,
+    totalCost: money(Number(partsCost) + Number(laborCost)),
     openedBy,
   });
 

@@ -42,6 +42,7 @@ export interface ICreateRepairJob {
   busId?: string;
   batteryId?: string;
   parts?: IRepairPartInput[];
+  laborCost?: string; // outside work paid for, known when the job opens
 }
 
 export interface ICompleteRepairJob {
