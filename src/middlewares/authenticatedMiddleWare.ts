@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import ApiError from "../errors/apiError";
 import User from "../models/User";
+import { IUser } from "../interfaces/user.interface";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 
@@ -29,7 +30,9 @@ export const isAuthenticated = async (
     if (decoded.type !== "access") {
       throw new ApiError(401, "Invalid token");
     }
-    const user = await User.findById(decoded.id);
+    // a plain object, not a full Mongoose document: this runs on every
+    // request and nothing downstream saves req.user
+    const user = await User.findById(decoded.id).lean<IUser>();
     if (!user) throw new ApiError(401, "User no longer exists");
     if (!user.isActive) throw new ApiError(403, "Account is deactivated");
     req.user = user;

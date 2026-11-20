@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
@@ -7,7 +6,7 @@ import TrackerUpdateEntry from "../models/TrackerUpdateEntry";
 import Bus from "../models/Bus";
 import User from "../models/User";
 import logger from "../config/logger";
-import { nextSequence } from "../helpers/sequence";
+import { runOnce } from "../helpers/runOnce";
 import { canonBattery as canon } from "../helpers/batterySighting";
 import {
   ICreateTracker,
@@ -21,8 +20,6 @@ import {
 // returns those verbatim. Add the new key to every stored override once;
 // the counter gate means a later deliberate removal is respected.
 const grantTrackersOnce = async () => {
-  const run = await nextSequence("migration_access_trackers", 1);
-  if (run !== 1) return;
   const res = await User.updateMany(
     { access: { $type: "array" } },
     { $addToSet: { access: "trackers" } },
@@ -31,15 +28,7 @@ const grantTrackersOnce = async () => {
     `Tracker access granted to ${res.modifiedCount} customized user(s)`,
   );
 };
-const runGrant = () =>
-  grantTrackersOnce().catch((error: Error) =>
-    logger.error("Tracker access migration failed", { message: error.message }),
-  );
-if (mongoose.connection.readyState === 1) {
-  void runGrant();
-} else {
-  mongoose.connection.once("connected", () => void runGrant());
-}
+runOnce("migration_access_trackers", grantTrackersOnce);
 
 // GET /api/trackers
 export const getTrackersService = async (query: ITrackersQuery) => {

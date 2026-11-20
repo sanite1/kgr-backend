@@ -66,7 +66,9 @@ export const getTodosService = async (query: ITodosQuery) => {
       Todo.find(filter)
         .sort(viewSort(view))
         .skip((page - 1) * pageSize)
-        .limit(pageSize),
+        .limit(pageSize)
+        .select("-__v")
+        .lean(),
       Todo.countDocuments(filter),
       Todo.countDocuments(viewFilter("attention")),
       Todo.countDocuments(viewFilter("upcoming")),
@@ -75,7 +77,7 @@ export const getTodosService = async (query: ITodosQuery) => {
     ]);
 
   const result = PaginatedResponse.build(
-    items.map((t) => t.toJSON()),
+    items,
     totalItems,
     page,
     pageSize,

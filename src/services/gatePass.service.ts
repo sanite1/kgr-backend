@@ -114,7 +114,7 @@ export const createGatePassService = async (
 
 // Who may see what: management everything, the gate only what it can act
 // on, everyone else strictly their own passes.
-const scopeFilter = (requester: Requester): Record<string, any> => {
+export const scopeFilter = (requester: Requester): Record<string, any> => {
   if (MANAGERS.includes(requester.role)) return {};
   if (requester.role === "security") {
     return { status: { $in: ["approved", "carried_out"] } };
@@ -163,12 +163,14 @@ export const getGatePassesService = async (
     GatePass.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * pageSize)
-      .limit(pageSize),
+      .limit(pageSize)
+      .select("-__v")
+      .lean(),
     GatePass.countDocuments(filter),
   ]);
 
   return PaginatedResponse.build(
-    passes.map((p) => p.toJSON()),
+    passes,
     totalItems,
     page,
     pageSize,

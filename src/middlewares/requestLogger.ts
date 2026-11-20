@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import logger from "../config/logger";
 
+const isProduction = process.env.NODE_ENV === "production";
+const SLOW_MS = 1000;
+
 export const requestLogger = (
   req: Request,
   res: Response,
@@ -19,7 +22,10 @@ export const requestLogger = (
     };
     if (res.statusCode >= 400)
       logger.warn("Request completed with error", logData);
-    else logger.info("Request completed", logData);
+    // in production a line per healthy request is pure cost; keep only
+    // the slow ones, which are the ones worth reading
+    else if (!isProduction || duration > SLOW_MS)
+      logger.info("Request completed", logData);
   });
   next();
 };

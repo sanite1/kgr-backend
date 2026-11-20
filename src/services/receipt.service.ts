@@ -136,12 +136,14 @@ export const getReceiptsService = async (query: IReceiptsQuery) => {
       .sort(sort)
       .skip((page - 1) * pageSize)
       .limit(pageSize)
-      .populate("issuedBy", "firstName lastName"),
+      .populate("issuedBy", "firstName lastName")
+      .select("-__v")
+      .lean(),
     Receipt.countDocuments(filter),
   ]);
 
   return PaginatedResponse.build(
-    receipts.map((r) => r.toJSON()),
+    receipts,
     totalItems,
     page,
     pageSize,

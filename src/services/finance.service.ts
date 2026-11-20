@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
@@ -9,7 +8,7 @@ import { materializeRecurringUpTo } from "./moneyBook.service";
 import User from "../models/User";
 import logger from "../config/logger";
 import { dayString } from "../helpers/day";
-import { nextSequence } from "../helpers/sequence";
+import { runOnce } from "../helpers/runOnce";
 import { buildPeriodBuckets, bucketKeyFor } from "../helpers/periodBuckets";
 import {
   ICreateFinanceEntry,
@@ -22,23 +21,13 @@ import {
 // this module existed would otherwise never see it. Admin-only module,
 // so only admin overrides are touched, exactly once.
 const grantFinanceOnce = async () => {
-  const run = await nextSequence("migration_access_finance", 1);
-  if (run !== 1) return;
   const res = await User.updateMany(
     { role: "admin", access: { $type: "array" } },
     { $addToSet: { access: "finance" } },
   );
   logger.info(`Finance access granted to ${res.modifiedCount} admin(s)`);
 };
-const runGrant = () =>
-  grantFinanceOnce().catch((error: Error) =>
-    logger.error("Finance access migration failed", { message: error.message }),
-  );
-if (mongoose.connection.readyState === 1) {
-  void runGrant();
-} else {
-  mongoose.connection.once("connected", () => void runGrant());
-}
+runOnce("migration_access_finance", grantFinanceOnce);
 
 const money = (n: number) => Math.round(n * 100) / 100;
 

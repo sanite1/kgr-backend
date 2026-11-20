@@ -196,7 +196,12 @@ export const getIdleBatteriesService = async () => {
   const THRESHOLD_DAYS = 2; // 48 hours in business days
 
   const [batteries, lastWorkedRows, lastHijetRows] = await Promise.all([
-    Battery.find({ isActive: true }).sort({ code: 1 }),
+    Battery.find({ isActive: true })
+      .sort({ code: 1 })
+      .select(
+        "code status location needsCheck createdAt idleSnoozedUntil idleSnoozedByName",
+      )
+      .lean(),
     Receipt.aggregate([
       {
         $match: {

@@ -1,11 +1,10 @@
-import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import ApiError from "../errors/apiError";
 import SavingsGoal from "../models/SavingsGoal";
 import SavingsGoalEntry from "../models/SavingsGoalEntry";
 import User from "../models/User";
 import logger from "../config/logger";
-import { nextSequence } from "../helpers/sequence";
+import { runOnce } from "../helpers/runOnce";
 import { dayString } from "../helpers/day";
 import {
   DAYS_PER_MONTH,
@@ -30,22 +29,13 @@ import {
 // One-time migration: managers and admins with customized tab access
 // saved before the Goal Tracker existed get the new key exactly once.
 const grantOnce = async () => {
-  const run = await nextSequence("migration_access_goal_tracker", 1);
-  if (run !== 1) return;
   const res = await User.updateMany(
     { role: { $in: ["admin", "manager"] }, access: { $type: "array" } },
     { $addToSet: { access: "goal_tracker" } },
   );
   logger.info(`Goal Tracker access granted to ${res.modifiedCount} user(s)`);
 };
-const runGrant = () =>
-  grantOnce().catch((error: Error) =>
-    logger.error("Goal Tracker access migration failed", {
-      message: error.message,
-    }),
-  );
-if (mongoose.connection.readyState === 1) void runGrant();
-else mongoose.connection.once("connected", () => void runGrant());
+runOnce("migration_access_goal_tracker", grantOnce);
 
 const signed = (e: { kind: string; amount: number }) =>
   e.kind === "withdrawal" ? -e.amount : e.amount;

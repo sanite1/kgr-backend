@@ -8,14 +8,16 @@ interface MemoryEntry {
   resetTime: number;
 }
 const memoryStore: Record<string, MemoryEntry> = {};
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const key in memoryStore)
-      if (memoryStore[key].resetTime < now) delete memoryStore[key];
-  },
-  5 * 60 * 1000,
-);
+// expired entries are swept lazily, at most once per window, instead of
+// by a timer that keeps every serverless instance waking up on its own
+const SWEEP_EVERY_MS = 5 * 60 * 1000;
+let lastSweep = Date.now();
+const sweepIfDue = (now: number) => {
+  if (now - lastSweep < SWEEP_EVERY_MS) return;
+  lastSweep = now;
+  for (const key in memoryStore)
+    if (memoryStore[key].resetTime < now) delete memoryStore[key];
+};
 
 const isRedisReady = (): boolean => {
   try {
@@ -49,6 +51,7 @@ const checkRateLimit = async (
     }
   }
   const now = Date.now();
+  sweepIfDue(now);
   if (!memoryStore[key] || memoryStore[key].resetTime < now) {
     memoryStore[key] = { count: 1, resetTime: now + windowMs };
     return { allowed: true, current: 1, resetAt: memoryStore[key].resetTime };

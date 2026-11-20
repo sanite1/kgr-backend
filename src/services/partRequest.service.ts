@@ -122,9 +122,13 @@ export const getPartRequestsService = async (query: IPartRequestsQuery) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize)
-      .populate("requestedBy decidedBy", "firstName lastName"),
+      .populate("requestedBy decidedBy", "firstName lastName")
+      .select("-__v")
+      .lean(),
     PartRequest.countDocuments(filter),
-    WarehouseItem.find({ isActive: true }).select("name quantityOnHand unit"),
+    WarehouseItem.find({ isActive: true })
+      .select("name quantityOnHand unit")
+      .lean(),
   ]);
 
   // live availability rides along so deciding never needs a trip to the
@@ -132,9 +136,9 @@ export const getPartRequestsService = async (query: IPartRequestsQuery) => {
   // pool has independently typed names, so that one matches forgivingly
   // and is only ever a hint.
   const itemIds = [...new Set(requests.map((r) => String(r.item)))];
-  const items = await InventoryItem.find({ _id: { $in: itemIds } }).select(
-    "quantityOnHand unit isActive",
-  );
+  const items = await InventoryItem.find({ _id: { $in: itemIds } })
+    .select("quantityOnHand unit isActive")
+    .lean();
   const stockById = new Map(items.map((i) => [String(i._id), i]));
   const warehouseByCanon = new Map(
     warehouseItems.map((w) => [canon(w.name), w]),
@@ -145,7 +149,7 @@ export const getPartRequestsService = async (query: IPartRequestsQuery) => {
       const stock = stockById.get(String(r.item));
       const wh = warehouseByCanon.get(canon(r.itemName));
       return {
-        ...r.toJSON(),
+        ...r,
         stock: stock
           ? {
               onHand: stock.quantityOnHand,

@@ -1,11 +1,10 @@
-import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import ApiError from "../errors/apiError";
 import CompanyAsset from "../models/CompanyAsset";
 import PriceListSetting from "../models/PriceListSetting";
 import User from "../models/User";
 import logger from "../config/logger";
-import { nextSequence } from "../helpers/sequence";
+import { runOnce } from "../helpers/runOnce";
 import {
   ICreateCompanyAsset,
   IUpdateCompanyAsset,
@@ -14,23 +13,13 @@ import {
 // One-time migration: managers and admins with customized tab access
 // saved before this module existed get the new key exactly once.
 const grantAssetsOnce = async () => {
-  const run = await nextSequence("migration_access_assets", 1);
-  if (run !== 1) return;
   const res = await User.updateMany(
     { role: { $in: ["admin", "manager"] }, access: { $type: "array" } },
     { $addToSet: { access: "assets" } },
   );
   logger.info(`Assets access granted to ${res.modifiedCount} user(s)`);
 };
-const runGrant = () =>
-  grantAssetsOnce().catch((error: Error) =>
-    logger.error("Assets access migration failed", { message: error.message }),
-  );
-if (mongoose.connection.readyState === 1) {
-  void runGrant();
-} else {
-  mongoose.connection.once("connected", () => void runGrant());
-}
+runOnce("migration_access_assets", grantAssetsOnce);
 
 const money = (n: number) => Math.round(n * 100) / 100;
 

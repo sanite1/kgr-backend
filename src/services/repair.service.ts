@@ -216,12 +216,14 @@ export const getRepairJobsService = async (query: IRepairJobsQuery) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * pageSize)
       .limit(pageSize)
-      .populate("openedBy closedBy", "firstName lastName"),
+      .populate("openedBy closedBy", "firstName lastName")
+      .select("-__v")
+      .lean(),
     RepairJob.countDocuments(filter),
   ]);
 
   return PaginatedResponse.build(
-    jobs.map((j) => j.toJSON()),
+    jobs,
     totalItems,
     page,
     pageSize,

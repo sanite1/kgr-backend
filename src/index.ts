@@ -82,6 +82,7 @@ import financeRoutes from "./routes/finance.routes";
 import companyAssetRoutes from "./routes/companyAsset.routes";
 import { runGrowthPlannerGrant } from "./config/growthPlannerAccess";
 import savingsGoalRoutes from "./routes/savingsGoal.routes";
+import notificationRoutes from "./routes/notification.routes";
 import moneyBookRoutes from "./routes/moneyBook.routes";
 import partnershipRoutes from "./routes/partnership.routes";
 import gatePassRoutes from "./routes/gatePass.routes";
@@ -90,9 +91,6 @@ import checklistRoutes from "./routes/checklist.routes";
 import warehouseRoutes from "./routes/warehouse.routes";
 import priceListRoutes from "./routes/priceList.routes";
 import todoRoutes from "./routes/todo.routes";
-import { createServer } from "http";
-import { initSocket } from "./config/socket";
-import { registerSocketHandlers } from "./config/socketHandler";
 
 // Validate environment variables
 validateEnv();
@@ -189,6 +187,7 @@ app.use("/api/finance", financeRoutes);
 app.use("/api/assets", companyAssetRoutes);
 runGrowthPlannerGrant();
 app.use("/api/goals", savingsGoalRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/money-book", moneyBookRoutes);
 app.use("/api/partnerships", partnershipRoutes);
 app.use("/api/gate-passes", gatePassRoutes);
@@ -206,24 +205,9 @@ app.all("*", (req, _res, next) => {
 // Global error handler: MUST be last
 app.use(globalErrorHandler);
 
-// HTTP server + Socket.IO share one server
-const httpServer = createServer(app);
-
-const startServer = async () => {
-  try {
-    const io = await initSocket(httpServer);
-    registerSocketHandlers(io);
-    httpServer.listen(PORT, () => {
-      logger.info(`Server listening on port ${PORT}`);
-      logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
-      logger.info("Socket.IO ready");
-    });
-  } catch (err) {
-    logger.error("Failed to start server", {
-      message: err instanceof Error ? err.message : String(err),
-    });
-    process.exit(1);
-  }
-};
-
-startServer();
+// Plain Express server. Socket.IO used to share this server, but no
+// client ever connected; it only added cold-start cost.
+app.listen(PORT, () => {
+  logger.info(`Server listening on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
+});

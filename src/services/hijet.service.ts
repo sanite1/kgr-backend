@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import ApiResponse from "../errors/apiResponse";
 import PaginatedResponse from "../errors/paginatedResponse";
 import ApiError from "../errors/apiError";
@@ -6,7 +5,7 @@ import HijetEntry from "../models/HijetEntry";
 import User from "../models/User";
 import logger from "../config/logger";
 import { dayString } from "../helpers/day";
-import { nextSequence } from "../helpers/sequence";
+import { runOnce } from "../helpers/runOnce";
 import {
   ICreateHijetEntry,
   IHijetEntriesQuery,
@@ -16,8 +15,6 @@ import {
 // already had customized access arrays saved. Same treatment as the
 // trackers module: add the key to stored overrides exactly once.
 const grantHijetOnce = async () => {
-  const run = await nextSequence("migration_access_hijet", 1);
-  if (run !== 1) return;
   const res = await User.updateMany(
     { access: { $type: "array" } },
     { $addToSet: { access: "hijet" } },
@@ -26,15 +23,7 @@ const grantHijetOnce = async () => {
     `Hijet access granted to ${res.modifiedCount} customized user(s)`,
   );
 };
-const runGrant = () =>
-  grantHijetOnce().catch((error: Error) =>
-    logger.error("Hijet access migration failed", { message: error.message }),
-  );
-if (mongoose.connection.readyState === 1) {
-  void runGrant();
-} else {
-  mongoose.connection.once("connected", () => void runGrant());
-}
+runOnce("migration_access_hijet", grantHijetOnce);
 
 // POST /api/hijet
 export const createHijetEntryService = async (

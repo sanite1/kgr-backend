@@ -69,7 +69,9 @@ export const getBusesService = async (query: IBusesQuery, role?: string) => {
     Bus.find(filter)
       .sort({ number: 1 })
       .skip((page - 1) * pageSize)
-      .limit(pageSize),
+      .limit(pageSize)
+      .select("-__v")
+      .lean(),
     Bus.countDocuments(filter),
   ]);
 
@@ -95,7 +97,7 @@ export const getBusesService = async (query: IBusesQuery, role?: string) => {
 
   return PaginatedResponse.build(
     buses.map((b) => ({
-      ...b.toJSON(),
+      ...b,
       maintenance: showMoney
         ? {
             openRepairs: openBy.get(String(b._id)) ?? 0,

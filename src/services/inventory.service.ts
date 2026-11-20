@@ -75,12 +75,14 @@ export const getItemsService = async (query: IItemsQuery) => {
     InventoryItem.find(filter)
       .sort({ name: 1 })
       .skip((page - 1) * pageSize)
-      .limit(pageSize),
+      .limit(pageSize)
+      .select("-__v")
+      .lean(),
     InventoryItem.countDocuments(filter),
   ]);
 
   return PaginatedResponse.build(
-    items.map((i) => i.toJSON()),
+    items,
     totalItems,
     page,
     pageSize,

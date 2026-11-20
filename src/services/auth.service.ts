@@ -73,7 +73,11 @@ export const refreshTokenService = async (payload: IRefreshRequest) => {
 
 // GET /api/auth/me: the authenticated user
 export const getMeService = async (user: IUser) => {
-  return new ApiResponse(200, "User retrieved successfully", user.toJSON());
+  // req.user is a plain object now; read the document so toJSON strips
+  // private fields exactly as before
+  const doc = await User.findById(user._id);
+  if (!doc) throw new ApiError(404, "User not found");
+  return new ApiResponse(200, "User retrieved successfully", doc.toJSON());
 };
 
 // POST /api/auth/change-password
