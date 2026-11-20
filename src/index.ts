@@ -187,7 +187,10 @@ app.use("/api/finance", financeRoutes);
 app.use("/api/assets", companyAssetRoutes);
 runGrowthPlannerGrant();
 app.use("/api/goals", savingsGoalRoutes);
-app.use("/api/notifications", notificationRoutes);
+// The bell's counts endpoint is switched off to save CPU; the route,
+// controller and service stay so it can be remounted with one line.
+const NOTIFICATIONS_ENABLED = false;
+if (NOTIFICATIONS_ENABLED) app.use("/api/notifications", notificationRoutes);
 app.use("/api/money-book", moneyBookRoutes);
 app.use("/api/partnerships", partnershipRoutes);
 app.use("/api/gate-passes", gatePassRoutes);
